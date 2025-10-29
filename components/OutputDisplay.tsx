@@ -14,7 +14,6 @@ interface OutputDisplayProps {
   script: string;
   isLoading: boolean;
   error: string | null;
-  onSaveToLibrary: () => void;
   onStartSequentialGenerate: () => void;
   isGeneratingSequentially: boolean;
   onGenerateNextPart: () => void;
@@ -26,7 +25,6 @@ interface OutputDisplayProps {
   isGeneratingAllVisualPrompts: boolean;
   scriptType: ScriptType;
   hasGeneratedAllVisualPrompts: boolean;
-  hasSavedToLibrary: boolean;
   visualPromptsCache: Map<string, VisualPrompt>;
 }
 
@@ -98,13 +96,13 @@ const parseMarkdown = (text: string) => {
 
 export const OutputDisplay: React.FC<OutputDisplayProps> = ({ 
     script, isLoading, error, 
-    onSaveToLibrary, onStartSequentialGenerate,
+    onStartSequentialGenerate,
     isGeneratingSequentially, onGenerateNextPart, currentPart, totalParts,
     revisionCount,
     onGenerateVisualPrompt,
     onGenerateAllVisualPrompts, isGeneratingAllVisualPrompts,
     scriptType,
-    hasGeneratedAllVisualPrompts, hasSavedToLibrary,
+    hasGeneratedAllVisualPrompts,
     visualPromptsCache
 }) => {
     const [copySuccess, setCopySuccess] = useState('');
@@ -243,11 +241,6 @@ export const OutputDisplay: React.FC<OutputDisplayProps> = ({
                                 {hasGeneratedAllVisualPrompts && !isGeneratingAllVisualPrompts && <CheckIcon className="w-4 h-4 text-green-400 ml-1" />}
                             </button>
                         )}
-                        <button onClick={onSaveToLibrary} className="flex items-center space-x-2 bg-secondary hover:bg-primary/50 text-text-primary px-3 py-1.5 rounded-md text-sm transition disabled:opacity-50 disabled:cursor-not-allowed border border-border" disabled={isLoading}>
-                            <SaveIcon className="w-4 h-4" />
-                            <span>Lưu vào thư viện</span>
-                            {hasSavedToLibrary && <CheckIcon className="w-4 h-4 text-green-400 ml-1" />}
-                        </button>
                         <button onClick={handleExportTxt} className="flex items-center space-x-2 bg-secondary hover:bg-primary/50 text-text-primary px-3 py-1.5 rounded-md text-sm transition disabled:opacity-50 disabled:cursor-not-allowed border border-border" disabled={isLoading}>
                             <DownloadIcon className="w-4 h-4" />
                             <span>Tải .txt</span>

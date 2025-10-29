@@ -114,7 +114,8 @@ export const TtsModal: React.FC<TtsModalProps> = ({ isOpen, onClose, dialogue, v
                 [partTitle]: { isLoading: false, audioUrl, error: null }
             }));
         } catch (caughtError) {
-            // Fix: The 'caughtError' variable is of type 'unknown'. We must check if it is an
+            // Fix: Ensure a proper GenerationStatus object is created from the unknown error.
+            // The 'caughtError' variable is of type 'unknown'. We must check if it is an
             // instance of Error before accessing the 'message' property to avoid a runtime error.
             setGenerationState(prev => ({
                 ...prev,

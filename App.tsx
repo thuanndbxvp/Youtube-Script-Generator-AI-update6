@@ -13,6 +13,7 @@ import { TtsModal } from './components/TtsModal';
 import { generateScript, generateScriptOutline, generateTopicSuggestions, reviseScript, generateScriptPart, extractDialogue, generateKeywordSuggestions, validateApiKey, generateVisualPrompt, generateAllVisualPrompts, summarizeScriptForScenes, suggestStyleOptions, parseIdeasFromFile, getElevenlabsVoices, generateElevenlabsTts } from './services/aiService';
 import type { StyleOptions, FormattingOptions, LibraryItem, GenerationParams, VisualPrompt, AllVisualPromptsResult, ScriptPartSummary, ScriptType, NumberOfSpeakers, CachedData, TopicSuggestionItem, SavedIdea, AiProvider, WordCountStats, ElevenlabsVoice } from './types';
 import { STYLE_OPTIONS, LANGUAGE_OPTIONS, GEMINI_MODELS } from './constants';
+import { CogIcon } from './components/icons/CogIcon';
 
 const YoutubeLogoIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="32" height="24" viewBox="0 0 28 20" fill="none" {...props}>
@@ -812,6 +813,13 @@ const App: React.FC = () => {
                     </div>
                 )}
             </div>
+             <button 
+                onClick={() => setIsApiKeyModalOpen(true)}
+                className="px-4 py-1.5 text-sm font-semibold rounded-md hover:bg-secondary transition-colors border border-border text-text-secondary hover:text-text-primary"
+                aria-label="Cài đặt API Key"
+            >
+                API
+            </button>
         </div>
       </header>
 
@@ -876,7 +884,6 @@ const App: React.FC = () => {
             script={generatedScript}
             isLoading={isLoading}
             error={error}
-            onSaveToLibrary={handleSaveToLibrary}
             onStartSequentialGenerate={handleStartSequentialGeneration}
             isGeneratingSequentially={isGeneratingSequentially}
             onGenerateNextPart={handleGenerateNextPart}
@@ -888,7 +895,6 @@ const App: React.FC = () => {
             isGeneratingAllVisualPrompts={isGeneratingAllVisualPrompts}
             scriptType={scriptType}
             hasGeneratedAllVisualPrompts={hasGeneratedAllVisualPrompts}
-            hasSavedToLibrary={hasSavedToLibrary}
             visualPromptsCache={visualPromptsCache}
           />
         </div>
@@ -904,7 +910,8 @@ const App: React.FC = () => {
                 isSummarizing={isSummarizing}
                 hasSummarizedScript={hasSummarizedScript}
                 onOpenLibrary={() => setIsLibraryOpen(true)}
-                onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
+                onSaveToLibrary={handleSaveToLibrary}
+                hasSavedToLibrary={hasSavedToLibrary}
                 onExtractAndCount={handleExtractAndCount}
                 wordCountStats={wordCountStats}
                 isExtracting={isExtracting}
