@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { TrashIcon } from './icons/TrashIcon';
 import type { AiProvider } from '../types';
 import { validateApiKey } from '../services/aiService';
-import { Tooltip } from './Tooltip';
 import { CheckIcon } from './icons/CheckIcon';
+import { KeyIcon } from './icons/KeyIcon';
 
 interface ApiKeyModalProps {
   isOpen: boolean;
@@ -38,151 +38,176 @@ const ElevenLabsIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     </svg>
 );
 
-
-const StatusIcon: React.FC<{ status: 'valid' | 'invalid' | 'checking' | 'idle' }> = ({ status }) => {
-    switch (status) {
-        case 'checking':
-            return <svg className="animate-spin h-5 w-5 text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>;
-        case 'valid':
-            return <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-green-400"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" /></svg>;
-        case 'invalid':
-            return <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-red-400"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" /></svg>;
-        default:
-            return <div className="h-5 w-5 flex items-center justify-center"><div className="h-3 w-3 rounded-full border-2 border-gray-500"></div></div>;
-    }
+type ValidationState = 'idle' | 'checking' | 'valid' | 'invalid';
+type ValidationStatus = {
+    state: ValidationState;
+    message: string | null;
 };
 
 export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, currentApiKeys, onSaveKeys }) => {
-    const [geminiKeysInput, setGeminiKeysInput] = useState('');
-    const [openAIKeysInput, setOpenAIKeysInput] = useState('');
-    const [elevenLabsKeysInput, setElevenLabsKeysInput] = useState('');
-
-    const [savingStatus, setSavingStatus] = useState<Record<AiProvider, 'idle' | 'saving' | 'success' | 'error'>>({ gemini: 'idle', openai: 'idle', elevenlabs: 'idle' });
-    const [saveErrors, setSaveErrors] = useState<Record<AiProvider, string | null>>({ gemini: null, openai: null, elevenlabs: null });
-
+    const [localApiKeys, setLocalApiKeys] = useState<Record<AiProvider, string[]>>(currentApiKeys);
+    const [newKeyInputs, setNewKeyInputs] = useState<Record<AiProvider, string>>({ gemini: '', openai: '', elevenlabs: '' });
+    const [validationStatus, setValidationStatus] = useState<Record<AiProvider, ValidationStatus>>({
+        gemini: { state: 'idle', message: null },
+        openai: { state: 'idle', message: null },
+        elevenlabs: { state: 'idle', message: null }
+    });
 
     useEffect(() => {
         if (isOpen) {
-            setGeminiKeysInput((currentApiKeys.gemini || []).join('\n'));
-            setOpenAIKeysInput((currentApiKeys.openai || []).join('\n'));
-            setElevenLabsKeysInput((currentApiKeys.elevenlabs || []).join('\n'));
-            
-            setSavingStatus({ gemini: 'idle', openai: 'idle', elevenlabs: 'idle' });
-            setSaveErrors({ gemini: null, openai: null, elevenlabs: null });
+            setLocalApiKeys(JSON.parse(JSON.stringify(currentApiKeys)));
+            setNewKeyInputs({ gemini: '', openai: '', elevenlabs: '' });
+            setValidationStatus({
+                gemini: { state: 'idle', message: null },
+                openai: { state: 'idle', message: null },
+                elevenlabs: { state: 'idle', message: null }
+            });
         }
     }, [isOpen, currentApiKeys]);
 
-    const handleSaveProviderKeys = async (provider: AiProvider) => {
-        setSavingStatus(prev => ({ ...prev, [provider]: 'saving' }));
-        setSaveErrors(prev => ({ ...prev, [provider]: null }));
-    
-        const keysInput = provider === 'gemini' ? geminiKeysInput : provider === 'openai' ? openAIKeysInput : elevenLabsKeysInput;
-        const newKeys = keysInput.split('\n').map(k => k.trim()).filter(Boolean);
-    
-        try {
-            if (newKeys.length > 0) {
-                const validationPromises = newKeys.map(key => 
-                    validateApiKey(key, provider).catch(err => {
-                        const providerName = provider.charAt(0).toUpperCase() + provider.slice(1);
-                        throw new Error(`Key ...${key.slice(-4)} không hợp lệ: ${err.message}`);
-                    })
-                );
-                await Promise.all(validationPromises);
-            }
-            
-            const newApiKeysState = { ...currentApiKeys, [provider]: newKeys };
-            onSaveKeys(newApiKeysState);
+    const handleAddKey = async (provider: AiProvider) => {
+        const keyToAdd = newKeyInputs[provider].trim();
+        if (!keyToAdd) return;
 
-            setSavingStatus(prev => ({ ...prev, [provider]: 'success' }));
-            setTimeout(() => setSavingStatus(prev => ({ ...prev, [provider]: 'idle' })), 2000);
-    
-        } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Lỗi xác thực không xác định.';
-            setSaveErrors(prev => ({ ...prev, [provider]: errorMessage }));
-            setSavingStatus(prev => ({ ...prev, [provider]: 'error' }));
+        if (localApiKeys[provider].includes(keyToAdd)) {
+            setValidationStatus(prev => ({
+                ...prev,
+                [provider]: { state: 'invalid', message: "Key này đã tồn tại." }
+            }));
+            return;
+        }
+
+        setValidationStatus(prev => ({ ...prev, [provider]: { state: 'checking', message: null } }));
+        try {
+            await validateApiKey(keyToAdd, provider);
+            setValidationStatus(prev => ({ ...prev, [provider]: { state: 'valid', message: "Key hợp lệ!" } }));
+
+            setLocalApiKeys(prev => {
+                const updatedKeys = [...prev[provider], keyToAdd];
+                // If this is the first key added, make it active
+                if(updatedKeys.length === 1) {
+                    return { ...prev, [provider]: updatedKeys };
+                }
+                return { ...prev, [provider]: updatedKeys };
+            });
+
+            setNewKeyInputs(prev => ({ ...prev, [provider]: '' }));
+
+            setTimeout(() => setValidationStatus(prev => ({ ...prev, [provider]: { state: 'idle', message: null } })), 2500);
+
+        } catch (error) {
+            setValidationStatus(prev => ({
+                ...prev,
+                [provider]: { state: 'invalid', message: error instanceof Error ? error.message : "Lỗi không xác định." }
+            }));
         }
     };
+
+    const handleDeleteKey = (provider: AiProvider, index: number) => {
+        setLocalApiKeys(prev => ({
+            ...prev,
+            [provider]: prev[provider].filter((_, i) => i !== index)
+        }));
+    };
+
+    const handleActivateKey = (provider: AiProvider, index: number) => {
+        setLocalApiKeys(prev => {
+            const keys = [...prev[provider]];
+            if (index > 0) {
+                const [itemToMove] = keys.splice(index, 1);
+                keys.unshift(itemToMove);
+            }
+            return { ...prev, [provider]: keys };
+        });
+    };
     
+    const handleSave = () => {
+        onSaveKeys(localApiKeys);
+        onClose();
+    };
 
     if (!isOpen) return null;
-    
+
     const renderKeyPanel = (provider: AiProvider) => {
         const isGemini = provider === 'gemini';
         const isElevenLabs = provider === 'elevenlabs';
         const title = isGemini ? 'Google Gemini' : isElevenLabs ? 'ElevenLabs TTS' : 'OpenAI';
         const icon = isGemini ? <GoogleIcon /> : isElevenLabs ? <ElevenLabsIcon className="text-sky-400"/> : <OpenAIIcon className="text-white"/>;
-        
-        const inputValue = isGemini ? geminiKeysInput : isElevenLabs ? elevenLabsKeysInput : openAIKeysInput;
-        const setInputValue = isGemini ? setGeminiKeysInput : isElevenLabs ? setElevenLabsKeysInput : setOpenAIKeysInput;
-        const displayedKeys = (currentApiKeys[provider] || []);
-
         const link = isGemini 
             ? <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">Google AI Studio</a>
             : isElevenLabs
             ? <a href="https://elevenlabs.io/" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">trang chủ ElevenLabs</a>
             : <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">trang tổng quan OpenAI</a>;
         
-        const getButtonContent = () => {
-            switch (savingStatus[provider]) {
-                case 'saving':
-                    return (
-                        <>
-                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                            Đang lưu...
-                        </>
-                    );
-                case 'success':
-                    return (
-                        <>
-                            <CheckIcon className="w-4 h-4 mr-2" />
-                            Đã lưu!
-                        </>
-                    );
-                default:
-                    return 'Lưu & Kiểm tra';
-            }
-        };
+        const status = validationStatus[provider];
+        const displayedKeys = localApiKeys[provider] || [];
 
         return (
-            <div className="bg-primary p-4 rounded-lg border border-border flex flex-col">
+            <div className="bg-primary p-4 rounded-lg border border-border flex flex-col h-full">
                 <div className="flex items-center gap-2 mb-3">
                     {icon}
                     <h3 className="font-semibold text-text-primary text-lg">{title}</h3>
                 </div>
-                <label className="text-sm text-text-secondary mb-1">Dán Keys của bạn vào đây (mỗi key một dòng):</label>
-                <textarea
-                    className="w-full h-28 bg-secondary border border-border rounded-md p-2 text-text-primary focus:ring-2 focus:ring-accent focus:border-accent transition font-mono text-sm"
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    placeholder="dán_api_key_của_bạn_vào_đây"
-                />
-                <p className="text-xs text-text-secondary/80 mt-1">Lấy key từ {link}. Key ở trên cùng sẽ được ưu tiên sử dụng.</p>
-
-                <div className="mt-4 pt-4 border-t border-border/50 flex flex-col items-end">
-                    {saveErrors[provider] && <p className="text-red-400 text-xs mb-2 text-right w-full">{saveErrors[provider]}</p>}
+                <p className="text-xs text-text-secondary/80 mb-2">Lấy key từ {link}.</p>
+                
+                <div className="flex items-start gap-2">
+                    <div className="relative flex-grow">
+                        <KeyIcon className="w-4 h-4 absolute left-2.5 top-2.5 text-text-secondary"/>
+                         <input
+                            type="text"
+                            className="w-full bg-secondary border border-border rounded-md p-2 pl-8 text-text-primary focus:ring-2 focus:ring-accent focus:border-accent transition font-mono text-sm"
+                            value={newKeyInputs[provider]}
+                            onChange={(e) => setNewKeyInputs(prev => ({ ...prev, [provider]: e.target.value }))}
+                            placeholder="Dán API key mới..."
+                            onKeyDown={(e) => e.key === 'Enter' && handleAddKey(provider)}
+                        />
+                    </div>
                     <button
-                        onClick={() => handleSaveProviderKeys(provider)}
-                        disabled={savingStatus[provider] === 'saving'}
-                        className={`flex items-center justify-center text-sm font-bold py-2 px-4 rounded-md transition disabled:opacity-50
-                            ${savingStatus[provider] === 'success' 
-                                ? 'bg-green-600 text-white' 
-                                : 'bg-accent hover:brightness-110 text-white'
-                            }`
-                        }
+                        onClick={() => handleAddKey(provider)}
+                        disabled={status.state === 'checking'}
+                        className="flex-shrink-0 bg-accent hover:brightness-110 text-white font-bold py-2 px-3 rounded-md transition disabled:opacity-50"
                     >
-                        {getButtonContent()}
+                        {status.state === 'checking' ? (
+                            <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        ) : 'Thêm'}
                     </button>
                 </div>
+                {status.message && (
+                    <p className={`text-xs mt-1.5 ${status.state === 'valid' ? 'text-green-400' : 'text-red-400'}`}>
+                        {status.message}
+                    </p>
+                )}
 
-                <div className="mt-4 flex-grow space-y-2 min-h-[5rem] overflow-y-auto pr-2">
-                    <h4 className="text-xs font-semibold text-text-secondary/80">Keys đang được lưu:</h4>
+                <div className="mt-4 flex-grow space-y-2 min-h-[8rem] overflow-y-auto pr-1">
+                    <h4 className="text-xs font-semibold text-text-secondary/80">Keys đã lưu:</h4>
                     {displayedKeys.length === 0 ? (
-                        <div className="text-center text-sm text-text-secondary pt-4">Chưa có key nào.</div>
+                        <div className="text-center text-sm text-text-secondary pt-6">Chưa có key nào.</div>
                     ) : (
                         displayedKeys.map((key, index) => (
-                            <div key={`${provider}-${index}`} className={`bg-secondary p-2 rounded-md flex justify-between items-center text-sm transition-all ${index === 0 ? 'border-l-2 border-accent' : ''}`}>
-                                <span className="font-mono text-text-secondary">{`...${key.slice(-6)}`}</span>
-                                {index === 0 && <span className="text-xs font-bold text-accent bg-primary px-2 py-0.5 rounded-full">ACTIVE</span>}
+                            <div key={`${provider}-${index}`} className="bg-secondary p-2 rounded-md flex justify-between items-center text-sm transition-all group">
+                                <div className="flex items-center gap-2">
+                                     <KeyIcon className="w-4 h-4 text-text-secondary"/>
+                                    <span className="font-mono text-text-secondary flex-shrink-0">{`...${key.slice(-6)}`}</span>
+                                    {index === 0 && <span className="text-xs font-bold text-accent bg-primary px-2 py-0.5 rounded-full">ACTIVE</span>}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    {index > 0 && (
+                                        <button 
+                                            onClick={() => handleActivateKey(provider, index)}
+                                            className="text-xs font-semibold text-text-secondary hover:text-accent opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                                            aria-label="Kích hoạt key"
+                                        >
+                                            Kích hoạt
+                                        </button>
+                                    )}
+                                    <button 
+                                        onClick={() => handleDeleteKey(provider, index)}
+                                        className="text-text-secondary hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                                        aria-label="Xóa key"
+                                    >
+                                        <TrashIcon className="w-4 h-4"/>
+                                    </button>
+                                </div>
                             </div>
                         ))
                     )}
@@ -196,16 +221,19 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, curre
             <div className="bg-secondary rounded-lg shadow-2xl w-full max-w-6xl max-h-[95vh] flex flex-col border border-border" onClick={e => e.stopPropagation()}>
                 <div className="p-5 border-b border-border">
                     <h2 className="text-xl font-bold text-accent">Quản lý API Keys</h2>
-                    <p className="text-sm text-text-secondary mt-1">Thêm hoặc chỉnh sửa API Keys. Hệ thống sẽ tự động thử các key hợp lệ theo thứ tự từ trên xuống dưới.</p>
+                    <p className="text-sm text-text-secondary mt-1">Key ở trên cùng sẽ là key được ưu tiên sử dụng. Thêm, xóa hoặc kích hoạt các key của bạn ở bên dưới.</p>
                 </div>
-                <div className="p-5 grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-y-auto">
+                <div className="p-5 grid grid-cols-1 lg:grid-cols-3 gap-6 overflow-y-auto flex-grow">
                     {renderKeyPanel('gemini')}
                     {renderKeyPanel('openai')}
                     {renderKeyPanel('elevenlabs')}
                 </div>
                 <div className="p-4 bg-primary border-t border-border flex flex-col sm:flex-row justify-end items-center gap-3">
-                     <button onClick={onClose} className="text-sm bg-secondary hover:bg-primary/50 text-text-secondary font-semibold py-2 px-4 rounded-md transition border border-border">
-                        Đóng
+                     <button onClick={onClose} className="w-full sm:w-auto text-sm bg-secondary hover:bg-primary/50 text-text-secondary font-semibold py-2 px-4 rounded-md transition border border-border">
+                        Hủy
+                    </button>
+                    <button onClick={handleSave} className="w-full sm:w-auto text-sm bg-accent hover:brightness-110 text-white font-bold py-2 px-4 rounded-md transition">
+                        Lưu & Đóng
                     </button>
                 </div>
             </div>
