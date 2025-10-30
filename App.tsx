@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { ControlPanel } from './components/ControlPanel';
 import { OutputDisplay } from './components/OutputDisplay';
@@ -340,15 +341,30 @@ const App: React.FC = () => {
                 throw new Error("File không chứa một danh sách (array) hợp lệ.");
             }
 
-            const validItems: LibraryItem[] = importedData.filter(item => 
-                typeof item === 'object' && item !== null &&
-                'id' in item && typeof item.id === 'number' &&
-                'title' in item && typeof item.title === 'string' &&
-                'script' in item && typeof item.script === 'string'
-            );
+            const validItems: LibraryItem[] = importedData
+                .map(item => {
+                    if (
+                        typeof item !== 'object' || item === null ||
+                        typeof item.id !== 'number' ||
+                        typeof item.title !== 'string' ||
+                        typeof item.script !== 'string'
+                    ) {
+                        return null;
+                    }
+
+                    const newItem: LibraryItem = {
+                        id: item.id,
+                        title: item.title,
+                        script: item.script,
+                        outlineContent: typeof item.outlineContent === 'string' ? item.outlineContent : '',
+                        cachedData: typeof item.cachedData === 'object' ? item.cachedData : undefined,
+                    };
+                    return newItem;
+                })
+                .filter((item): item is LibraryItem => item !== null);
 
             if (validItems.length === 0 && importedData.length > 0) {
-                throw new Error("File không chứa bất kỳ mục kịch bản hợp lệ nào.");
+                throw new Error("File không chứa bất kỳ mục kịch bản hợp lệ nào. Vui lòng kiểm tra định dạng file.");
             }
 
             const currentIds = new Set(library.map(item => item.id));
