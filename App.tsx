@@ -367,27 +367,41 @@ const App: React.FC = () => {
                         title: item.title,
                         script: item.script,
                         outlineContent: typeof item.outlineContent === 'string' ? item.outlineContent : '',
-                        cachedData: typeof item.cachedData === 'object' ? item.cachedData : undefined,
+                        // Ensure cachedData is an object and not null, otherwise undefined
+                        cachedData: typeof item.cachedData === 'object' && item.cachedData !== null ? item.cachedData : undefined,
                     };
                     return newItem;
                 })
                 .filter((item): item is LibraryItem => item !== null);
 
-            if (validItems.length === 0 && importedData.length > 0) {
-                throw new Error("File không chứa bất kỳ mục kịch bản hợp lệ nào. Vui lòng kiểm tra định dạng file.");
+            if (validItems.length === 0) {
+                alert("Không tìm thấy mục kịch bản hợp lệ nào trong file để import.");
+                return;
             }
+            
+            // Use a Map to handle merging and overwriting based on item ID
+            const libraryMap = new Map<number, LibraryItem>(library.map(item => [item.id, item]));
+            
+            let updatedCount = 0;
+            let newCount = 0;
 
-            const currentIds = new Set(library.map(item => item.id));
-            const newItems = validItems.filter(item => !currentIds.has(item.id));
+            validItems.forEach(item => {
+                if (libraryMap.has(item.id)) {
+                    updatedCount++;
+                } else {
+                    newCount++;
+                }
+                libraryMap.set(item.id, item);
+            });
+            
+            // Convert map back to an array and sort by ID to keep newest items first
+            const updatedLibrary = Array.from(libraryMap.values()).sort((a, b) => b.id - a.id);
+            
+            setLibrary(updatedLibrary);
+            localStorage.setItem('yt-script-library', JSON.stringify(updatedLibrary));
+            
+            alert(`Import hoàn tất! ${newCount} mục mới đã được thêm, ${updatedCount} mục đã được cập nhật.`);
 
-            if (newItems.length > 0) {
-                const updatedLibrary = [...newItems, ...library];
-                setLibrary(updatedLibrary);
-                localStorage.setItem('yt-script-library', JSON.stringify(updatedLibrary));
-                alert(`Đã nhập thành công ${newItems.length} mục mới.`);
-            } else {
-                alert("Không có mục mới nào được thêm. Các mục trong file có thể đã tồn tại trong thư viện của bạn.");
-            }
         } catch (error) {
             console.error("Lỗi khi import thư viện:", error);
             alert(`Lỗi khi import: ${error instanceof Error ? error.message : 'File không hợp lệ hoặc bị hỏng.'}`);

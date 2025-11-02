@@ -114,7 +114,7 @@ export const TtsModal: React.FC<TtsModalProps> = ({ isOpen, onClose, dialogue, v
                 [partTitle]: { isLoading: false, audioUrl, error: null }
             }));
         } catch (caughtError) {
-            // FIX: The `caughtError` variable is of type `unknown` and cannot be assigned
+            // Fix: The `caughtError` variable is of type `unknown` and cannot be assigned
             // directly to a state property that expects a `GenerationStatus` object.
             // This fix creates a new `GenerationStatus` object and safely extracts the
             // error message, preventing a crash when other parts of the code access properties like `isLoading`.
