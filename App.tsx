@@ -345,43 +345,56 @@ const App: React.FC = () => {
 
     const handleImportLibrary = useCallback((fileContent: string) => {
         try {
-            const importedData: any[] = JSON.parse(fileContent);
+            const importedData = JSON.parse(fileContent);
 
             if (!Array.isArray(importedData)) {
                 throw new Error("File không chứa một danh sách (array) hợp lệ.");
             }
 
-            const validItems: LibraryItem[] = importedData
-                .map(item => {
-                    if (
-                        typeof item !== 'object' || item === null ||
-                        typeof item.id !== 'number' ||
-                        typeof item.title !== 'string' ||
-                        typeof item.script !== 'string'
-                    ) {
-                        return null;
-                    }
+            // More robust validation and cleaning for each item
+            const validItems: LibraryItem[] = importedData.map((item: any) => {
+                // Basic validation for core fields
+                if (typeof item !== 'object' || item === null || typeof item.id !== 'number' || typeof item.title !== 'string' || typeof item.script !== 'string') {
+                    console.warn("Skipping invalid item during import:", item);
+                    return null;
+                }
 
-                    const newItem: LibraryItem = {
-                        id: item.id,
-                        title: item.title,
-                        script: item.script,
-                        outlineContent: typeof item.outlineContent === 'string' ? item.outlineContent : '',
-                        // Ensure cachedData is an object and not null, otherwise undefined
-                        cachedData: typeof item.cachedData === 'object' && item.cachedData !== null ? item.cachedData : undefined,
+                // Deep validation and cleaning for cachedData
+                let cleanedCachedData: CachedData | undefined = undefined;
+                if (typeof item.cachedData === 'object' && item.cachedData !== null) {
+                    const data = item.cachedData;
+                    cleanedCachedData = {
+                        visualPrompts: (typeof data.visualPrompts === 'object' && data.visualPrompts !== null) ? data.visualPrompts : {},
+                        allVisualPrompts: Array.isArray(data.allVisualPrompts) ? data.allVisualPrompts : null,
+                        summarizedScript: Array.isArray(data.summarizedScript) ? data.summarizedScript : null,
+                        extractedDialogue: (typeof data.extractedDialogue === 'object' && data.extractedDialogue !== null) ? data.extractedDialogue : null,
+                        hasExtractedDialogue: typeof data.hasExtractedDialogue === 'boolean' ? data.hasExtractedDialogue : false,
+                        hasGeneratedAllVisualPrompts: typeof data.hasGeneratedAllVisualPrompts === 'boolean' ? data.hasGeneratedAllVisualPrompts : false,
+                        hasSummarizedScript: typeof data.hasSummarizedScript === 'boolean' ? data.hasSummarizedScript : false,
                     };
-                    return newItem;
-                })
-                .filter((item): item is LibraryItem => item !== null);
+                }
 
-            if (validItems.length === 0) {
-                alert("Không tìm thấy mục kịch bản hợp lệ nào trong file để import.");
+                const newItem: LibraryItem = {
+                    id: item.id,
+                    title: item.title.trim(),
+                    script: item.script,
+                    outlineContent: typeof item.outlineContent === 'string' ? item.outlineContent : '',
+                    cachedData: cleanedCachedData,
+                };
+                return newItem;
+            }).filter((item): item is LibraryItem => item !== null);
+
+            if (validItems.length === 0 && importedData.length > 0) {
+                alert("Các mục trong file không hợp lệ hoặc bị hỏng. Không có gì được import.");
                 return;
             }
-            
-            // Use a Map to handle merging and overwriting based on item ID
+
+            if (validItems.length === 0) {
+                alert("File import trống hoặc không chứa mục kịch bản nào.");
+                return;
+            }
+
             const libraryMap = new Map<number, LibraryItem>(library.map(item => [item.id, item]));
-            
             let updatedCount = 0;
             let newCount = 0;
 
@@ -394,7 +407,6 @@ const App: React.FC = () => {
                 libraryMap.set(item.id, item);
             });
             
-            // Convert map back to an array and sort by ID to keep newest items first
             const updatedLibrary = Array.from(libraryMap.values()).sort((a, b) => b.id - a.id);
             
             setLibrary(updatedLibrary);
