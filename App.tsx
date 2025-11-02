@@ -7,7 +7,7 @@ import { DialogueModal } from './components/DialogueModal';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { VisualPromptModal } from './components/VisualPromptModal';
 import { AllVisualPromptsModal } from './components/AllVisualPromptsModal';
-import { SummarizeModal } from './components/SummarizeModal';
+import { SummarizeModal, SummarizeConfig } from './components/SummarizeModal';
 import { SavedIdeasModal } from './components/SavedIdeasModal';
 import { SideToolsPanel } from './components/SideToolsPanel';
 import { TtsModal } from './components/TtsModal';
@@ -706,22 +706,25 @@ const App: React.FC = () => {
     }
   }, [generatedScript, allVisualPromptsCache, visualPromptsCache, aiProvider, selectedModel]);
 
-  const handleSummarizeScript = useCallback(async () => {
-    if (!generatedScript.trim()) return;
-    
+  const handleOpenSummarizeModal = () => {
     if (summarizedScriptCache) {
-        setSummarizedScript(summarizedScriptCache);
-        setIsSummarizeModalOpen(true);
-        return;
+      setSummarizedScript(summarizedScriptCache);
+    } else {
+      setSummarizedScript(null);
+      setSummarizationError(null);
     }
+    setIsSummarizeModalOpen(true);
+  };
+
+  const handleGenerateSummary = useCallback(async (config: SummarizeConfig) => {
+    if (!generatedScript.trim()) return;
 
     setIsSummarizing(true);
     setSummarizedScript(null);
     setSummarizationError(null);
-    setIsSummarizeModalOpen(true);
-
+    
     try {
-        const summary = await summarizeScriptForScenes(generatedScript, aiProvider, selectedModel);
+        const summary = await summarizeScriptForScenes(generatedScript, aiProvider, selectedModel, config);
         setSummarizedScript(summary);
         setSummarizedScriptCache(summary);
         setHasSummarizedScript(true);
@@ -730,7 +733,7 @@ const App: React.FC = () => {
     } finally {
         setIsSummarizing(false);
     }
-  }, [generatedScript, summarizedScriptCache, aiProvider, selectedModel]);
+  }, [generatedScript, aiProvider, selectedModel]);
 
 
   const handleOpenTtsModal = async () => {
@@ -931,7 +934,7 @@ const App: React.FC = () => {
                 revisionPrompt={revisionPrompt}
                 setRevisionPrompt={setRevisionPrompt}
                 onRevise={handleReviseScript}
-                onSummarizeScript={handleSummarizeScript}
+                onSummarizeScript={handleOpenSummarizeModal}
                 isLoading={isLoading}
                 isSummarizing={isSummarizing}
                 hasSummarizedScript={hasSummarizedScript}
@@ -996,6 +999,7 @@ const App: React.FC = () => {
         error={summarizationError}
         scriptType={scriptType}
         title={title}
+        onGenerate={handleGenerateSummary}
       />
       <TtsModal
         isOpen={isTtsModalOpen}

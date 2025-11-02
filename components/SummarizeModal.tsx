@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { ClipboardIcon } from './icons/ClipboardIcon';
 import { DownloadIcon } from './icons/DownloadIcon';
@@ -5,6 +6,11 @@ import type { ScriptPartSummary, ScriptType } from '../types';
 
 // Make TypeScript aware of the global XLSX object from the CDN
 declare const XLSX: any;
+
+export interface SummarizeConfig {
+  numberOfPrompts: 'auto' | number;
+  includeNarration: boolean;
+}
 
 interface SummarizeModalProps {
   isOpen: boolean;
@@ -14,6 +20,7 @@ interface SummarizeModalProps {
   error: string | null;
   scriptType: ScriptType;
   title: string;
+  onGenerate: (config: SummarizeConfig) => void;
 }
 
 const LoadingSkeleton: React.FC = () => (
@@ -61,8 +68,29 @@ const CopyButton: React.FC<{ text: string }> = ({ text }) => {
     );
 };
 
-export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose, summary, isLoading, error, scriptType, title }) => {
+export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose, summary, isLoading, error, scriptType, title, onGenerate }) => {
+    const [isAutoPrompts, setIsAutoPrompts] = useState(true);
+    const [promptCountInput, setPromptCountInput] = useState('10');
+    const [includeNarration, setIncludeNarration] = useState(false);
+
+    useEffect(() => {
+        if (isOpen && !summary && !isLoading && !error) {
+            setIsAutoPrompts(true);
+            setPromptCountInput('10');
+            setIncludeNarration(false);
+        }
+    }, [isOpen, summary, isLoading, error]);
+
+
     if (!isOpen) return null;
+
+    const handleGenerateClick = () => {
+        const config = {
+            numberOfPrompts: isAutoPrompts ? 'auto' : parseInt(promptCountInput, 10),
+            includeNarration,
+        };
+        onGenerate(config);
+    };
 
     const handleDownloadExcel = () => {
         if (!summary || typeof XLSX === 'undefined') return;
@@ -92,9 +120,87 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
         XLSX.writeFile(workbook, fileName);
     };
 
+    const hasGenerated = summary || isLoading || error;
+    const isGenerateButtonDisabled = !isAutoPrompts && (!promptCountInput || parseInt(promptCountInput) <= 0);
+
+    const renderContent = () => {
+        if (isLoading) return <LoadingSkeleton />;
+        if (error) return <p className="text-red-400 bg-red-900/50 p-3 rounded-md">{error}</p>;
+
+        if (!summary) {
+            return (
+                <div className="space-y-6">
+                    <div>
+                        <label className="block text-sm font-semibold text-text-primary mb-2">Số lượng prompt</label>
+                        <div className="flex items-center space-x-4">
+                            <input
+                                type="number"
+                                value={promptCountInput}
+                                onChange={e => setPromptCountInput(e.target.value)}
+                                disabled={isAutoPrompts}
+                                className="w-24 bg-primary border border-border rounded-md p-2 text-text-primary focus:ring-2 focus:ring-accent focus:border-accent transition disabled:bg-primary/50 disabled:cursor-not-allowed"
+                                placeholder="VD: 15"
+                            />
+                            <label className="flex items-center space-x-2 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={isAutoPrompts}
+                                    onChange={e => setIsAutoPrompts(e.target.checked)}
+                                    className="h-4 w-4 rounded border-border text-accent focus:ring-accent bg-secondary"
+                                />
+                                <span className="text-text-primary">Tự động</span>
+                            </label>
+                        </div>
+                        <p className="text-xs text-text-secondary mt-1">AI sẽ tạo số lượng cảnh phù hợp (~8s mỗi cảnh) nếu bạn chọn "Tự động".</p>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold text-text-primary mb-2">Tùy chọn lời thoại</label>
+                         <label className="flex items-center space-x-2 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={includeNarration}
+                                onChange={e => setIncludeNarration(e.target.checked)}
+                                className="h-4 w-4 rounded border-border text-accent focus:ring-accent bg-secondary"
+                            />
+                            <span className="text-text-primary">Bao gồm lời thoại trong video</span>
+                        </label>
+                        <p className="text-xs text-text-secondary mt-1">Nếu không chọn, AI sẽ tạo prompt cho video chỉ có nhạc nền và có thể gợi ý chữ trên màn hình.</p>
+                    </div>
+                </div>
+            );
+        }
+
+        return (
+            <div className="space-y-8">
+                {summary.map((part, index) => (
+                    <div key={index} className="bg-primary p-4 rounded-lg border border-border">
+                        <h3 className="text-lg font-bold text-accent mb-4 border-b border-border pb-2">{part.partTitle}</h3>
+                        <div className="space-y-4">
+                            {part.scenes.map(scene => (
+                                <div key={scene.sceneNumber} className="border-t border-border/50 pt-3">
+                                    <p className="text-sm text-text-secondary"><strong className="text-text-primary font-semibold">Cảnh {scene.sceneNumber}:</strong> {scene.summary}</p>
+                                    <div className="mt-2">
+                                        <label className="block text-xs font-semibold text-text-secondary mb-1">Prompt Video (Tiếng Anh)</label>
+                                        <textarea
+                                            readOnly
+                                            rows={3}
+                                            className="w-full bg-secondary border border-border rounded-md p-2 text-text-primary resize-y text-sm font-mono"
+                                            value={scene.visualPrompt}
+                                        />
+                                        <CopyButton text={scene.visualPrompt} />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        );
+    };
+
     return (
         <div 
-            className="fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-center items-center"
+            className="fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-center items-center p-4"
             onClick={onClose}
         >
             <div 
@@ -106,48 +212,29 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
                     <button onClick={onClose} className="text-text-secondary hover:text-text-primary text-2xl font-bold">&times;</button>
                 </div>
                 <div className="p-6 overflow-y-auto flex-grow">
-                    {isLoading && <LoadingSkeleton />}
-                    {error && <p className="text-red-400 bg-red-900/50 p-3 rounded-md">{error}</p>}
-                    {!isLoading && !error && summary && (
-                        <div className="space-y-8">
-                            {summary.map((part, index) => (
-                                <div key={index} className="bg-primary p-4 rounded-lg border border-border">
-                                    <h3 className="text-lg font-bold text-accent mb-4 border-b border-border pb-2">{part.partTitle}</h3>
-                                    <div className="space-y-4">
-                                        {part.scenes.map(scene => (
-                                            <div key={scene.sceneNumber} className="border-t border-border/50 pt-3">
-                                                <p className="text-sm text-text-secondary"><strong className="text-text-primary font-semibold">Cảnh {scene.sceneNumber} - Tóm tắt (cho ~8s):</strong> {scene.summary}</p>
-                                                <div className="mt-2">
-                                                    <label className="block text-xs font-semibold text-text-secondary mb-1">Prompt Video (Tiếng Anh)</label>
-                                                    <textarea
-                                                        readOnly
-                                                        rows={3}
-                                                        className="w-full bg-secondary border border-border rounded-md p-2 text-text-primary resize-y text-sm font-mono"
-                                                        value={scene.visualPrompt}
-                                                    />
-                                                    <CopyButton text={scene.visualPrompt} />
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                    {renderContent()}
                 </div>
                 <div className="p-4 border-t border-border flex justify-end items-center gap-4">
                     {isLoading && (
-                        <p className="text-xs text-accent flex-grow">Bạn có thể đóng hộp thoại này và quay trở lại sau khi hoàn tất.</p>
+                        <p className="text-xs text-accent flex-grow">AI đang sáng tạo, vui lòng chờ trong giây lát...</p>
                     )}
-                    <button 
-                        onClick={handleDownloadExcel}
-                        disabled={isLoading || !summary || summary.length === 0}
-                        className="flex items-center gap-2 text-sm bg-secondary/70 hover:bg-secondary text-text-secondary font-semibold py-2 px-4 rounded-md transition border border-border disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        <DownloadIcon className="w-5 h-5" />
-                        Download Prompts
-                    </button>
-                    <button onClick={onClose} className="bg-accent hover:brightness-110 text-white font-bold py-2 px-4 rounded-md transition">
+
+                    {!hasGenerated ? (
+                        <button onClick={handleGenerateClick} disabled={isGenerateButtonDisabled} className="bg-accent hover:brightness-110 text-white font-bold py-2 px-4 rounded-md transition disabled:opacity-50 disabled:cursor-not-allowed">
+                            Bắt đầu chuyển thể
+                        </button>
+                    ) : (
+                         <button 
+                            onClick={handleDownloadExcel}
+                            disabled={isLoading || !summary || summary.length === 0}
+                            className="flex items-center gap-2 text-sm bg-secondary/70 hover:bg-secondary text-text-secondary font-semibold py-2 px-4 rounded-md transition border border-border disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <DownloadIcon className="w-5 h-5" />
+                            Download Prompts
+                        </button>
+                    )}
+                    
+                    <button onClick={onClose} className="bg-primary hover:bg-primary/70 text-text-secondary font-bold py-2 px-4 rounded-md transition border border-border">
                         Đóng
                     </button>
                 </div>

@@ -1,6 +1,8 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import type { GenerationParams, VisualPrompt, AllVisualPromptsResult, ScriptPartSummary, StyleOptions, TopicSuggestionItem, AiProvider, ElevenlabsVoice, Expression } from '../types';
 import { EXPRESSION_OPTIONS, STYLE_OPTIONS } from '../constants';
+import { SummarizeConfig } from '../components/SummarizeModal';
 
 // Helper function to handle API errors and provide more specific messages
 const handleApiError = (error: unknown, context: string): Error => {
@@ -597,24 +599,41 @@ export const generateAllVisualPrompts = async (script: string, provider: AiProvi
     }
 };
 
-export const summarizeScriptForScenes = async (script: string, provider: AiProvider, model: string): Promise<ScriptPartSummary[]> => {
+export const summarizeScriptForScenes = async (
+    script: string, 
+    provider: AiProvider, 
+    model: string, 
+    config: SummarizeConfig
+): Promise<ScriptPartSummary[]> => {
+    const { numberOfPrompts, includeNarration } = config;
+
+    const quantityInstruction = typeof numberOfPrompts === 'number'
+        ? `You MUST generate exactly ${numberOfPrompts} total scenes for the entire script.`
+        : `Each scene must be designed to be approximately 8 seconds long. You decide the total number of scenes based on the script's length.`;
+
+    const narrationInstruction = includeNarration
+        ? `The final video WILL include the narrator's voice. The 'visualPrompt' should complement the spoken words, illustrating what is being said.`
+        : `The final video will NOT have narration, only background music. Therefore, the 'visualPrompt' is CRITICAL for storytelling. It must be extra descriptive and should suggest on-screen text for key information when necessary to convey the message without voice.`;
+    
     const prompt = `
-        You are an expert video production assistant. Your task is to break down the following YouTube script into a series of detailed scenes, each corresponding to an 8-second video clip.
-        The script is organized into main parts using markdown headings (## or ###). For each main part, you must generate multiple short scenes.
+        You are an expert video production assistant. Your task is to break down the following YouTube script into a series of detailed scenes.
+        The script is organized into main parts using markdown headings (## or ###).
 
         **Input Script:**
         """
         ${script}
         """
 
-        **Instructions:**
-        1.  Analyze the script section by section.
-        2.  For each main part identified by a heading, create a list of scenes.
-        3.  Each scene must be designed to be approximately 8 seconds long.
-        4.  For each scene, provide:
-            - A short 'summary' in Vietnamese, describing the key action, information, or dialogue for that 8-second segment.
-            - A detailed 'visualPrompt' in English for an AI video generator (like Veo) that visually represents the summary. This prompt should describe the setting, characters, action, mood, and camera style.
-        5.  The final output must be a JSON array. Each object in the array represents a main part of the script and must have a 'partTitle' (the heading text) and a 'scenes' array. Each object in the 'scenes' array must have 'sceneNumber' (starting from 1 for each part), 'summary', and 'visualPrompt'.
+        **CRITICAL INSTRUCTIONS:**
+        1.  **Source Material:** Your primary source for generating the 'summary' and 'visualPrompt' MUST be the "Lời thoại" (Narration) and "Gợi ý hình ảnh/cử chỉ" (Visual Cues) provided in the script for that section. Faithfully translate the script's intent into visual scenes. Do not invent new concepts.
+        2.  **Scene Quantity:** ${quantityInstruction}
+        3.  **Narration Context:** ${narrationInstruction}
+        4.  **Output Structure:**
+            -   For each main part identified by a heading, create a list of scenes.
+            -   For each scene, you MUST provide:
+                - A short 'summary' in Vietnamese, describing the key action or information for that segment. This is based on the script's content.
+                - A detailed 'visualPrompt' in English for an AI video generator (like Veo). This prompt must visually represent the summary and follow the narration context above. It must describe setting, characters, action, mood, and camera style.
+        5.  **JSON Format:** The final output MUST be a JSON array. Each object in the array represents a main part of the script and must have a 'partTitle' (the heading text) and a 'scenes' array. Each object in the 'scenes' array must have 'sceneNumber' (starting from 1 for the whole script), 'summary', and 'visualPrompt'.
         6.  The output must be ONLY the JSON array, nothing else.
 
         Please generate the JSON array now.
@@ -624,7 +643,16 @@ export const summarizeScriptForScenes = async (script: string, provider: AiProvi
         const responseText = await callApi(prompt, provider, model, true);
         const jsonResponse = JSON.parse(responseText);
         if (Array.isArray(jsonResponse)) {
-            return jsonResponse as ScriptPartSummary[];
+             // Re-number scenes sequentially from 1 across all parts
+            let sceneCounter = 1;
+            const renumberedSummary = jsonResponse.map(part => ({
+                ...part,
+                scenes: part.scenes.map((scene: any) => ({
+                    ...scene,
+                    sceneNumber: sceneCounter++
+                }))
+            }));
+            return renumberedSummary as ScriptPartSummary[];
         } else {
             throw new Error("AI returned data in an unexpected format.");
         }
