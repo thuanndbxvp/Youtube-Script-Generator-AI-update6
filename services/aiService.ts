@@ -613,7 +613,10 @@ export const summarizeScriptForScenes = async (
 
     const narrationInstruction = includeNarration
         ? `The final video WILL include the narrator's voice. The 'visualPrompt' should complement the spoken words, illustrating what is being said.`
-        : `The final video will NOT have narration, only background music. Therefore, the 'visualPrompt' is CRITICAL for storytelling. It must be extra descriptive and should suggest on-screen text for key information when necessary to convey the message without voice.`;
+        : `The final video will NOT have narration, only background music and sound effects. The storytelling must be purely visual.
+- **CRITICAL RULE:** The 'visualPrompt' MUST NOT describe any person speaking, narrating, or lipsyncing. The generated video should be completely free of human speech.
+- **Visual Storytelling First:** The 'visualPrompt' must be extremely descriptive, focusing on powerful imagery, actions, symbolism, and atmosphere to convey the story and information from the script's summary.
+- **Minimize On-Screen Text:** AVOID suggesting on-screen text. Only include suggestions for on-screen text (e.g., 'On-screen text appears: ...') as a last resort, if a key piece of information is absolutely impossible to convey visually. The default should be NO on-screen text.`;
     
     const prompt = `
         You are an expert video production assistant. Your task is to break down the following YouTube script into a series of detailed scenes.
