@@ -1,4 +1,5 @@
 
+
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { ControlPanel } from './components/ControlPanel';
 import { OutputDisplay } from './components/OutputDisplay';
@@ -775,6 +776,12 @@ const App: React.FC = () => {
   const handleScoreScript = useCallback(async () => {
     if (!generatedScript.trim()) return;
     
+    // If a score is already cached for the current script, just show it.
+    if (scriptScore) {
+        setIsScoreModalOpen(true);
+        return;
+    }
+    
     setIsScoring(true);
     setScriptScore(null);
     setScoringError(null);
@@ -782,13 +789,13 @@ const App: React.FC = () => {
 
     try {
         const result = await scoreScript(generatedScript, title, aiProvider, selectedModel);
-        setScriptScore(result);
+        setScriptScore(result); // Cache the result
     } catch (err) {
         setScoringError(err instanceof Error ? err.message : 'Lỗi không xác định khi chấm điểm kịch bản.');
     } finally {
         setIsScoring(false);
     }
-  }, [generatedScript, title, aiProvider, selectedModel]);
+  }, [generatedScript, title, aiProvider, selectedModel, scriptScore]);
 
 
   const handleOpenTtsModal = async () => {
