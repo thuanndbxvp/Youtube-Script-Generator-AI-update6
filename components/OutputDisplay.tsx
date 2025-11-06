@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { ClipboardIcon } from './icons/ClipboardIcon';
 import { SaveIcon } from './icons/SaveIcon';
 import { BoltIcon } from './icons/BoltIcon';
@@ -9,6 +10,7 @@ import { DownloadIcon } from './icons/DownloadIcon';
 import { FilmIcon } from './icons/FilmIcon';
 import { CheckIcon } from './icons/CheckIcon';
 import type { ScriptType, VisualPrompt } from '../types';
+import { UploadIcon } from './icons/UploadIcon';
 
 interface OutputDisplayProps {
   script: string;
@@ -26,23 +28,24 @@ interface OutputDisplayProps {
   scriptType: ScriptType;
   hasGeneratedAllVisualPrompts: boolean;
   visualPromptsCache: Map<string, VisualPrompt>;
+  onImportScript: (file: File) => void;
 }
 
-const InitialState: React.FC = () => (
+const InitialState: React.FC<{ onImportClick: () => void }> = ({ onImportClick }) => (
     <div className="text-text-secondary prose prose-invert max-w-none prose-p:leading-relaxed">
         <h2 className="text-3xl font-bold text-text-primary mb-4" style={{color: 'var(--color-accent)'}}>Giải phóng Sức sáng tạo của bạn.</h2>
-        <p className="text-lg">Biến ý tưởng lóe lên thành kịch bản video/podcast chuyên nghiệp chỉ trong vài phút. Dưới đây là quy trình làm việc đề xuất:</p>
+        <p className="text-lg">Biến ý tưởng lóe lên thành kịch bản chuyên nghiệp, hoặc <button onClick={onImportClick} className="text-accent hover:underline font-semibold inline">import kịch bản có sẵn</button> để bắt đầu tinh chỉnh.</p>
 
         <div className="mt-8 space-y-6">
             {/* Step 1 */}
             <div className="bg-secondary p-6 rounded-lg border border-border flex gap-6 items-start">
                 <div className="flex-shrink-0 bg-accent text-white rounded-full w-12 h-12 flex items-center justify-center font-bold text-xl shadow-md shadow-accent/20">1</div>
                 <div>
-                    <h3 className="font-semibold text-accent/90 text-lg mb-2">Bước 1: Khởi động Ý tưởng</h3>
+                    <h3 className="font-semibold text-accent/90 text-lg mb-2">Bước 1: Khởi động Ý tưởng (hoặc Kịch bản)</h3>
                     <ul className="list-disc list-inside space-y-2 text-sm text-text-secondary">
-                        <li><strong>Cài đặt API Key:</strong> Đây là bước đầu tiên và quan trọng nhất. Nhấp vào nút "API" ở cột bên phải để thêm key của bạn.</li>
+                        <li><strong>Cài đặt API Key:</strong> Đây là bước đầu tiên và quan trọng nhất. Nhấp vào nút "API" ở góc trên bên phải để thêm key của bạn.</li>
                         <li><strong>Nhập ý tưởng:</strong> Trong ô "Ý tưởng chính", điền chủ đề chính hoặc phác thảo sơ bộ nội dung bạn muốn.</li>
-                        <li><strong>Brainstorm:</strong> Bí ý tưởng? Dùng công cụ "Brainstorm với AI" ngay bên dưới để khám phá các chủ đề, góc nhìn hấp dẫn.</li>
+                        <li><strong>Hoặc Import kịch bản:</strong> Nhấn nút "Import" ở trên để tải lên file .txt, .srt, hoặc .xlsx và bắt đầu làm việc ngay.</li>
                         <li><strong>Chọn AI:</strong> Lựa chọn nhà cung cấp AI (Gemini hoặc OpenAI) và model phù hợp nhất với nhu cầu của bạn.</li>
                     </ul>
                 </div>
@@ -55,7 +58,6 @@ const InitialState: React.FC = () => (
                     <h3 className="font-semibold text-accent/90 text-lg mb-2">Bước 2: Tinh chỉnh & Sáng tạo</h3>
                     <ul className="list-disc list-inside space-y-2 text-sm text-text-secondary">
                         <li><strong>Từ khóa SEO:</strong> Thêm các từ khóa quan trọng vào ô "Từ khóa" để AI lồng ghép chúng một cách tự nhiên, giúp video dễ được tìm thấy hơn.</li>
-                        <li><strong>Chọn định dạng:</strong> Tùy chỉnh loại kịch bản cho "Video YouTube" hoặc "Podcast".</li>
                         <li><strong>Thiết lập phong cách:</strong> Trong các mục "Lối diễn đạt" và "Phong cách Viết", hãy chọn các tùy chọn phù hợp nhất, hoặc nhấn "AI Gợi ý Phong cách" để AI đề xuất cho bạn.</li>
                         <li><strong>Tạo kịch bản:</strong> Khi đã sẵn sàng, nhấn nút "Tạo kịch bản" và chứng kiến phép màu!</li>
                     </ul>
@@ -103,10 +105,12 @@ export const OutputDisplay: React.FC<OutputDisplayProps> = ({
     onGenerateAllVisualPrompts, isGeneratingAllVisualPrompts,
     scriptType,
     hasGeneratedAllVisualPrompts,
-    visualPromptsCache
+    visualPromptsCache,
+    onImportScript
 }) => {
     const [copySuccess, setCopySuccess] = useState('');
     const [loadingPromptIndex, setLoadingPromptIndex] = useState<number | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (copySuccess) {
@@ -142,6 +146,19 @@ export const OutputDisplay: React.FC<OutputDisplayProps> = ({
         await onGenerateVisualPrompt(scene);
         setLoadingPromptIndex(null);
     };
+
+    const handleImportClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            onImportScript(file);
+        }
+        // Reset input to allow re-uploading the same file
+        event.target.value = '';
+    };
     
     const isOutline = script.includes("### Dàn Ý Chi Tiết");
     const showActionControls = !!script;
@@ -156,7 +173,7 @@ export const OutputDisplay: React.FC<OutputDisplayProps> = ({
         if (isLoading) {
             return 'Kịch bản đang được tạo';
         }
-        return 'Kịch bản được tạo';
+        return 'Kịch bản';
     };
 
     const renderContent = () => {
@@ -205,12 +222,19 @@ export const OutputDisplay: React.FC<OutputDisplayProps> = ({
                 );
             });
         }
-        if (!isLoading) return <InitialState />;
+        if (!isLoading) return <InitialState onImportClick={handleImportClick} />;
         return null;
     }
 
   return (
     <div className="bg-secondary rounded-lg shadow-xl h-full flex flex-col border border-border">
+         <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            accept=".txt,.srt,.xlsx"
+            className="hidden"
+        />
         <div className="flex justify-between items-center p-4 border-b border-border flex-wrap gap-2 sticky top-[81px] bg-secondary/80 backdrop-blur-sm z-10">
             <h2 className="text-lg font-semibold text-text-primary flex items-center gap-2">
                 <span>{getTitle()}</span>
@@ -228,6 +252,10 @@ export const OutputDisplay: React.FC<OutputDisplayProps> = ({
                         <span>Tạo kịch bản đầy đủ</span>
                     </button>
                 )}
+                <button onClick={handleImportClick} className="flex items-center space-x-2 bg-secondary hover:bg-primary/50 text-text-primary px-3 py-1.5 rounded-md text-sm transition border border-border">
+                    <UploadIcon className="w-4 h-4" />
+                    <span>Import</span>
+                </button>
                 {showActionControls && (
                     <>
                          {!isOutline && (

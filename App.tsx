@@ -16,6 +16,9 @@ import type { StyleOptions, FormattingOptions, LibraryItem, GenerationParams, Vi
 import { STYLE_OPTIONS, LANGUAGE_OPTIONS, GEMINI_MODELS } from './constants';
 import { CogIcon } from './components/icons/CogIcon';
 
+// Make TypeScript aware of the global XLSX object from the CDN
+declare const XLSX: any;
+
 const YoutubeLogoIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="32" height="24" viewBox="0 0 28 20" fill="none" {...props}>
     <path d="M27.42 3.033a3.51 3.51 0 0 0-2.483-2.483C22.768 0 14 0 14 0S5.232 0 3.063.55A3.51 3.51 0 0 0 .58 3.033C0 5.2 0 10 0 10s0 4.8.58 6.967a3.51 3.51 0 0 0 2.483 2.483C5.232 20 14 20 14 20s8.768 0 10.937-.55a3.51 3.51 0 0 0 2.483-2.483C28 14.8 28 10 28 10s0-4.8-.58-6.967z" fill="#FF0000"/>
@@ -245,6 +248,7 @@ const App: React.FC = () => {
     setHasSummarizedScript(false);
     setHasSavedToLibrary(false);
     setWordCountStats(null);
+    setRevisionCount(0);
   };
 
 
@@ -805,6 +809,75 @@ const App: React.FC = () => {
       }
       return await generateElevenlabsTts(text, voiceId);
   };
+  
+    const handleImportScript = useCallback((file: File) => {
+        const reader = new FileReader();
+        const fileExtension = file.name.split('.').pop()?.toLowerCase();
+
+        reader.onload = (event) => {
+            try {
+                const content = event.target?.result;
+                if (typeof content !== 'string' && !(content instanceof ArrayBuffer)) {
+                    throw new Error("Không thể đọc nội dung file.");
+                }
+                
+                let parsedContent = '';
+                if (fileExtension === 'txt') {
+                    parsedContent = content as string;
+                } else if (fileExtension === 'srt') {
+                    // Remove timestamps and sequence numbers from SRT files
+                    parsedContent = (content as string)
+                        .replace(/^\d+\s*[\r\n]/gm, '') // Remove sequence numbers
+                        .replace(/^\d{2}:\d{2}:\d{2},\d{3} --> \d{2}:\d{2}:\d{2},\d{3}\s*[\r\n]/gm, '') // Remove timestamps
+                        .replace(/<[^>]*>/g, '') // Remove HTML-like tags
+                        .trim();
+                } else if (fileExtension === 'xlsx') {
+                    if (typeof XLSX === 'undefined') {
+                        throw new Error("Thư viện đọc file Excel chưa được tải. Vui lòng kiểm tra lại kết nối mạng.");
+                    }
+                    const workbook = XLSX.read(content, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    
+                    // Assume script is in the first column, join all rows
+                    parsedContent = json.map((row: any) => row[0]).filter(Boolean).join('\n\n');
+                } else {
+                     throw new Error(`Định dạng file .${fileExtension} không được hỗ trợ.`);
+                }
+
+                if (!parsedContent.trim()) {
+                    throw new Error("File trống hoặc không có nội dung hợp lệ.");
+                }
+                
+                resetCachesAndStates();
+                setGeneratedScript(parsedContent);
+                // Generate a title from the filename
+                const newTitle = file.name
+                    .replace(/\.[^/.]+$/, "") // Remove extension
+                    .replace(/[_-]/g, " ") // Replace underscores/hyphens with spaces
+                    .replace(/\b\w/g, l => l.toUpperCase()); // Capitalize words
+                setTitle(newTitle);
+                setOutlineContent('');
+                setError(null);
+
+            } catch (err) {
+                 setError(err instanceof Error ? err.message : 'Đã xảy ra lỗi khi xử lý file.');
+            }
+        };
+        
+        reader.onerror = () => {
+            setError("Đã xảy ra lỗi khi đọc file.");
+        };
+
+        if (fileExtension === 'xlsx') {
+             reader.readAsArrayBuffer(file);
+        } else if (fileExtension === 'txt' || fileExtension === 'srt') {
+            reader.readAsText(file);
+        } else {
+            setError(`Định dạng file .${fileExtension} không được hỗ trợ. Vui lòng sử dụng .txt, .srt, hoặc .xlsx.`);
+        }
+    }, []);
 
 
   useEffect(() => {
@@ -951,6 +1024,7 @@ const App: React.FC = () => {
             scriptType={scriptType}
             hasGeneratedAllVisualPrompts={hasGeneratedAllVisualPrompts}
             visualPromptsCache={visualPromptsCache}
+            onImportScript={handleImportScript}
           />
         </div>
          <div className="lg:col-span-3">
