@@ -704,6 +704,62 @@ export const suggestStyleOptions = async (title: string, outlineContent: string,
     }
 };
 
+export const scoreScript = async (script: string, title: string, provider: AiProvider, model: string): Promise<string> => {
+    const prompt = `
+        Bạn là một chuyên gia chấm điểm kịch bản điện ảnh, có nhiệm vụ đánh giá trung thực và khắt khe.
+        Hãy đọc toàn bộ kịch bản dưới đây, hiểu rõ cấu trúc, cảm xúc, thông điệp và phong cách kể.
+
+        **Tiêu đề kịch bản:** "${title}"
+        **Nội dung kịch bản:**
+        """
+        ${script}
+        """
+
+        **YÊU CẦU BẮT BUỘC:**
+        Bạn PHẢI trình bày bài đánh giá theo đúng định dạng markdown sau, không thêm bớt bất kỳ mục nào. Giọng văn phải chuyên nghiệp, có chiều sâu phê bình, và khắt khe.
+
+        ### Bảng Đánh Giá Kịch Bản
+
+        🧩 **1. Kết cấu và mạch cảm xúc**
+        - **Điểm:** [Chấm điểm trên thang 10, ví dụ: 8.5/10]
+        - **Phân tích:** [Phân tích ngắn gọn, súc tích, có trích dẫn từ kịch bản để minh họa.]
+
+        📚 **2. Độ chính xác & nghiên cứu**
+        - **Điểm:** [Chấm điểm trên thang 10]
+        - **Phân tích:** [Đánh giá tính logic, độ tin cậy của thông tin nếu có, hoặc tính nhất quán của thế giới nội tại trong kịch bản.]
+
+        ✍️ **3. Giọng văn & phong cách kể**
+        - **Điểm:** [Chấm điểm trên thang 10]
+        - **Phân tích:** [Nhận xét về lối hành văn, sự độc đáo, và hiệu quả của phong cách kể chuyện được chọn.]
+
+        💡 **4. Ý tưởng và chiều sâu tư tưởng**
+        - **Điểm:** [Chấm điểm trên thang 10]
+        - **Phân tích:** [Đánh giá tính nguyên bản, thông điệp, và tầm vóc của ý tưởng cốt lõi.]
+
+        🪶 **5. Cấu trúc, nhịp đọc và sức nặng hình ảnh**
+        - **Điểm:** [Chấm điểm trên thang 10]
+        - **Phân tích:** [Đánh giá nhịp điệu của kịch bản, cách xây dựng cảnh, và tiềm năng chuyển thể thành hình ảnh điện ảnh.]
+
+        ---
+
+        🏅 **Tổng điểm:** [Tính điểm trung bình của 5 tiêu chí, làm tròn đến 1 chữ số thập phân]/10
+        **Nhận định tổng quát:** [Một đoạn nhận xét chung về kịch bản, tiềm năng và phong cách.]
+
+        🎬 **Gợi ý cải thiện:**
+        - [Gạch đầu dòng 1: Đề xuất cụ thể, thực tế để cải thiện kịch bản.]
+        - [Gạch đầu dòng 2: Đề xuất tiếp theo.]
+        - [Gạch đầu dòng 3: ...]
+
+        Hãy bắt đầu bài đánh giá ngay bây giờ.
+    `;
+
+    try {
+        return await callApi(prompt, provider, model, false);
+    } catch (error) {
+        throw handleApiError(error, 'chấm điểm kịch bản');
+    }
+};
+
 export const getElevenlabsVoices = async (): Promise<ElevenlabsVoice[]> => {
     try {
         const apiKey = getApiKey('elevenlabs');

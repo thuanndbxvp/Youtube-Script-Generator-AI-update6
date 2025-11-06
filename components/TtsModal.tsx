@@ -114,9 +114,11 @@ export const TtsModal: React.FC<TtsModalProps> = ({ isOpen, onClose, dialogue, v
                 [partTitle]: { isLoading: false, audioUrl, error: null }
             }));
         } catch (caughtError) {
-            // FIX: Correctly handle the 'unknown' type of caughtError. Instead of assigning
-            // it directly to the state, create a valid GenerationStatus object. This resolves
-            // the runtime error when trying to access properties on an unknown type.
+            // FIX: The 'caughtError' variable is of type 'unknown' and was being assigned
+            // directly to the state. This caused a type mismatch and a runtime error on line 127
+            // when trying to access the 'isLoading' property on an 'unknown' value.
+            // The fix is to create a proper `GenerationStatus` object, setting the error message
+            // and ensuring the state remains type-safe.
             setGenerationState(prev => ({
                 ...prev,
                 [partTitle]: { isLoading: false, audioUrl: null, error: caughtError instanceof Error ? caughtError.message : 'Lỗi không xác định' }

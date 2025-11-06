@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { WordCountCheck } from './WordCountCheck';
 import { ScriptTools } from './ScriptTools';
@@ -5,6 +6,7 @@ import { BookOpenIcon } from './icons/BookOpenIcon';
 import type { WordCountStats } from '../types';
 import { SaveIcon } from './icons/SaveIcon';
 import { CheckIcon } from './icons/CheckIcon';
+import { TrophyIcon } from './icons/TrophyIcon';
 
 // Combine all props needed for the side panel
 interface SideToolsPanelProps {
@@ -24,6 +26,8 @@ interface SideToolsPanelProps {
   wordCountStats: WordCountStats | null;
   isExtracting: boolean;
   onOpenTtsModal: () => void;
+  onScoreScript: () => void;
+  isScoring: boolean;
 }
 
 export const SideToolsPanel: React.FC<SideToolsPanelProps> = ({
@@ -43,6 +47,8 @@ export const SideToolsPanel: React.FC<SideToolsPanelProps> = ({
     wordCountStats,
     isExtracting,
     onOpenTtsModal,
+    onScoreScript,
+    isScoring,
 }) => {
 
     return (
@@ -69,6 +75,15 @@ export const SideToolsPanel: React.FC<SideToolsPanelProps> = ({
                         <span>Thư viện</span>
                     </button>
                 </div>
+                 <button
+                    onClick={onScoreScript}
+                    disabled={!script || isLoading || isScoring}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-primary hover:bg-primary/70 text-text-primary font-semibold rounded-lg transition-colors border border-border disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label="Chấm điểm kịch bản"
+                >
+                    <TrophyIcon className="w-5 h-5 text-amber-400" />
+                    <span>{isScoring ? 'Đang chấm điểm...' : 'Chấm điểm kịch bản'}</span>
+                </button>
             </div>
 
             {script && (

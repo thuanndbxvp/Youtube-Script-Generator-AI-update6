@@ -11,7 +11,8 @@ import { SummarizeModal, SummarizeConfig } from './components/SummarizeModal';
 import { SavedIdeasModal } from './components/SavedIdeasModal';
 import { SideToolsPanel } from './components/SideToolsPanel';
 import { TtsModal } from './components/TtsModal';
-import { generateScript, generateScriptOutline, generateTopicSuggestions, reviseScript, generateScriptPart, extractDialogue, generateKeywordSuggestions, validateApiKey, generateVisualPrompt, generateAllVisualPrompts, summarizeScriptForScenes, suggestStyleOptions, parseIdeasFromFile, getElevenlabsVoices, generateElevenlabsTts } from './services/aiService';
+import { ScoreModal } from './components/ScoreModal';
+import { generateScript, generateScriptOutline, generateTopicSuggestions, reviseScript, generateScriptPart, extractDialogue, generateKeywordSuggestions, validateApiKey, generateVisualPrompt, generateAllVisualPrompts, summarizeScriptForScenes, suggestStyleOptions, parseIdeasFromFile, getElevenlabsVoices, generateElevenlabsTts, scoreScript } from './services/aiService';
 import type { StyleOptions, FormattingOptions, LibraryItem, GenerationParams, VisualPrompt, AllVisualPromptsResult, ScriptPartSummary, ScriptType, NumberOfSpeakers, CachedData, TopicSuggestionItem, SavedIdea, AiProvider, WordCountStats, ElevenlabsVoice } from './types';
 import { STYLE_OPTIONS, LANGUAGE_OPTIONS, GEMINI_MODELS } from './constants';
 import { CogIcon } from './components/icons/CogIcon';
@@ -146,6 +147,11 @@ const App: React.FC = () => {
   const [isFetchingTtsVoices, setIsFetchingTtsVoices] = useState<boolean>(false);
   const [ttsModalError, setTtsModalError] = useState<string | null>(null);
 
+  const [isScoreModalOpen, setIsScoreModalOpen] = useState<boolean>(false);
+  const [scriptScore, setScriptScore] = useState<string | null>(null);
+  const [isScoring, setIsScoring] = useState<boolean>(false);
+  const [scoringError, setScoringError] = useState<string | null>(null);
+
   const [aiProvider, setAiProvider] = useState<AiProvider>('gemini');
   const [selectedModel, setSelectedModel] = useState<string>(GEMINI_MODELS[1].value);
 
@@ -249,6 +255,7 @@ const App: React.FC = () => {
     setHasSavedToLibrary(false);
     setWordCountStats(null);
     setRevisionCount(0);
+    setScriptScore(null); // Reset score cache
   };
 
 
@@ -765,6 +772,24 @@ const App: React.FC = () => {
     }
   }, [generatedScript, aiProvider, selectedModel]);
 
+  const handleScoreScript = useCallback(async () => {
+    if (!generatedScript.trim()) return;
+    
+    setIsScoring(true);
+    setScriptScore(null);
+    setScoringError(null);
+    setIsScoreModalOpen(true);
+
+    try {
+        const result = await scoreScript(generatedScript, title, aiProvider, selectedModel);
+        setScriptScore(result);
+    } catch (err) {
+        setScoringError(err instanceof Error ? err.message : 'Lỗi không xác định khi chấm điểm kịch bản.');
+    } finally {
+        setIsScoring(false);
+    }
+  }, [generatedScript, title, aiProvider, selectedModel]);
+
 
   const handleOpenTtsModal = async () => {
     if (!extractedDialogueCache) {
@@ -1045,6 +1070,8 @@ const App: React.FC = () => {
                 wordCountStats={wordCountStats}
                 isExtracting={isExtracting}
                 onOpenTtsModal={handleOpenTtsModal}
+                onScoreScript={handleScoreScript}
+                isScoring={isScoring}
             />
         </div>
       </main>
@@ -1109,6 +1136,13 @@ const App: React.FC = () => {
         isLoadingVoices={isFetchingTtsVoices}
         onGenerate={handleGenerateTts}
         error={ttsModalError}
+      />
+      <ScoreModal
+        isOpen={isScoreModalOpen}
+        onClose={() => setIsScoreModalOpen(false)}
+        score={scriptScore}
+        isLoading={isScoring}
+        error={scoringError}
       />
     </div>
   );
