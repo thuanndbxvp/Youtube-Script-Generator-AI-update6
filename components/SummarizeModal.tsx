@@ -1,6 +1,7 @@
 
 
 
+
 import React, { useState, useEffect } from 'react';
 import { ClipboardIcon } from './icons/ClipboardIcon';
 import { DownloadIcon } from './icons/DownloadIcon';
@@ -152,6 +153,40 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
         setIsBulkGenerating(false);
     };
 
+    const handleRetryAllFailedPrompts = async () => {
+        if (!summary) return;
+        
+        setIsBulkGenerating(true); // Reuse loading state for UI feedback
+
+        const config: SummarizeConfig = {
+            numberOfPrompts: isAutoPrompts ? 'auto' : parseInt(promptCountInput, 10),
+            includeNarration,
+            scenarioType,
+            referenceImage,
+        };
+
+        const scenesToRetry: { scene: SceneSummary, partIndex: number }[] = [];
+        summary.forEach((part, partIndex) => {
+            part.scenes.forEach(scene => {
+                if (scene.videoPrompt.startsWith('LỖI:')) {
+                    scenesToRetry.push({ scene, partIndex });
+                }
+            });
+        });
+
+        // The onGenerateVideoPrompt prop already handles optimistic UI updates.
+        // We just need to iterate and call it for each failed item.
+        for (const { scene, partIndex } of scenesToRetry) {
+            try {
+                await handleGenerateVideoPromptClick(scene, partIndex);
+            } catch (error) {
+                console.error(`Error retrying prompt for scene ${scene.sceneNumber}:`, error);
+            }
+        }
+        
+        setIsBulkGenerating(false);
+    };
+
     const handleDownloadExcel = () => {
         if (!summary || typeof XLSX === 'undefined') return;
 
@@ -183,11 +218,19 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
 
     const hasGenerated = summary || isLoading || error;
     const isGenerateButtonDisabled = !isAutoPrompts && (!promptCountInput || parseInt(promptCountInput) <= 0);
+    
     const needsBulkGeneration = summary?.some(part => 
         part.scenes.some(scene => 
             (scenarioType === 'finance' || scenarioType === 'ww2') && scene.videoPrompt.startsWith('Prompt chưa được tạo.')
         )
     ) ?? false;
+
+    const hasFailedPrompts = summary?.some(part =>
+        part.scenes.some(scene =>
+            scene.videoPrompt.startsWith('LỖI:')
+        )
+    ) ?? false;
+
 
     const renderContent = () => {
         if (isLoading) return <LoadingSkeleton />;
@@ -297,7 +340,14 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
                                             <p className="text-sm text-text-secondary"><strong className="text-text-primary font-semibold">{summaryLabel}:</strong> {scene.summary}</p>
                                             <div className="mt-2">
                                                 <label className="block text-xs font-semibold text-text-secondary mb-1">Prompt {activeTab === 'image' ? 'Ảnh' : 'Video'} (Tiếng Anh)</label>
-                                                {isVideoPlaceholder ? (
+                                                {isGeneratingThisPrompt && isVideoError ? (
+                                                    <div className="w-full bg-secondary border border-border rounded-md p-4 text-center">
+                                                        <div className="flex items-center justify-center mx-auto text-text-primary text-sm">
+                                                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                                            <span>Đang thử lại...</span>
+                                                        </div>
+                                                    </div>
+                                                ) : isVideoPlaceholder ? (
                                                     <div className="w-full bg-secondary border border-border rounded-md p-4 text-center">
                                                         <button
                                                             onClick={() => handleGenerateVideoPromptClick(scene, partIndex)}
@@ -351,6 +401,50 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
         );
     };
 
+    const renderBulkActionButton = () => {
+        if (activeTab !== 'video') return null;
+
+        if (hasFailedPrompts) {
+            return (
+                <button
+                    onClick={handleRetryAllFailedPrompts}
+                    disabled={isBulkGenerating || !!generatingVideoPromptKey || isLoading}
+                    className="flex items-center gap-2 text-sm bg-amber-500 hover:bg-amber-600 text-white font-semibold py-2 px-4 rounded-md transition disabled:opacity-50"
+                >
+                    {isBulkGenerating ? (
+                        <>
+                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                            <span>Đang thử lại...</span>
+                        </>
+                    ) : (
+                        'Thử lại các mục lỗi'
+                    )}
+                </button>
+            );
+        }
+
+        if (needsBulkGeneration) {
+            return (
+                <button
+                    onClick={handleGenerateAllVideoPrompts}
+                    disabled={isBulkGenerating || !!generatingVideoPromptKey || isLoading}
+                    className="flex items-center gap-2 text-sm bg-accent/80 hover:bg-accent text-white font-semibold py-2 px-4 rounded-md transition disabled:opacity-50"
+                >
+                    {isBulkGenerating ? (
+                        <>
+                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                            <span>Đang tạo...</span>
+                        </>
+                    ) : (
+                        'Tạo hàng loạt'
+                    )}
+                </button>
+            );
+        }
+
+        return null;
+    };
+
     return (
         <div 
             className="fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-center items-center p-4"
@@ -369,7 +463,7 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
                 </div>
                 <div className="p-4 border-t border-border flex justify-end items-center gap-4">
                     {isBulkGenerating ? (
-                        <p className="text-xs text-accent flex-grow">Đang tạo prompt hàng loạt, vui lòng chờ...</p>
+                        <p className="text-xs text-accent flex-grow">Đang xử lý hàng loạt, vui lòng chờ...</p>
                     ) : isLoading ? (
                         <p className="text-xs text-accent flex-grow">AI đang sáng tạo, vui lòng chờ trong giây lát...</p>
                     ) : null}
@@ -380,22 +474,7 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
                         </button>
                     ) : (
                          <>
-                            {needsBulkGeneration && activeTab === 'video' && (
-                                <button
-                                    onClick={handleGenerateAllVideoPrompts}
-                                    disabled={isBulkGenerating || !!generatingVideoPromptKey || isLoading}
-                                    className="flex items-center gap-2 text-sm bg-accent/80 hover:bg-accent text-white font-semibold py-2 px-4 rounded-md transition disabled:opacity-50"
-                                >
-                                    {isBulkGenerating ? (
-                                        <>
-                                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                            <span>Đang tạo...</span>
-                                        </>
-                                    ) : (
-                                        'Tạo hàng loạt'
-                                    )}
-                                </button>
-                            )}
+                            {renderBulkActionButton()}
                              <button 
                                 onClick={handleDownloadExcel}
                                 disabled={isBulkGenerating || isLoading || !summary || summary.length === 0}
