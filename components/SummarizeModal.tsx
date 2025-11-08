@@ -226,18 +226,29 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
                             <div className="space-y-4">
                                 {part.scenes.map(scene => {
                                     const promptText = activeTab === 'image' ? scene.imagePrompt : scene.videoPrompt;
+                                    const isPlaceholder = (scenarioType === 'finance' || scenarioType === 'ww2') && activeTab === 'video';
+                                    const summaryLabel = scenarioType === 'finance' ? 'Trích đoạn kịch bản' : `Cảnh ${scene.sceneNumber}`;
+
                                     return (
                                         <div key={scene.sceneNumber} className="border-t border-border/50 pt-3">
-                                            <p className="text-sm text-text-secondary"><strong className="text-text-primary font-semibold">Cảnh {scene.sceneNumber}:</strong> {scene.summary}</p>
+                                            <p className="text-sm text-text-secondary"><strong className="text-text-primary font-semibold">{summaryLabel}:</strong> {scene.summary}</p>
                                             <div className="mt-2">
                                                 <label className="block text-xs font-semibold text-text-secondary mb-1">Prompt {activeTab === 'image' ? 'Ảnh' : 'Video'} (Tiếng Anh)</label>
-                                                <textarea
-                                                    readOnly
-                                                    rows={3}
-                                                    className="w-full bg-secondary border border-border rounded-md p-2 text-text-primary resize-y text-sm font-mono"
-                                                    value={promptText}
-                                                />
-                                                <CopyButton text={promptText} />
+                                                {isPlaceholder ? (
+                                                     <div className="w-full bg-secondary border border-border rounded-md p-4 text-text-secondary text-center text-sm italic">
+                                                        {promptText}
+                                                     </div>
+                                                ) : (
+                                                    <>
+                                                        <textarea
+                                                            readOnly
+                                                            rows={3}
+                                                            className="w-full bg-secondary border border-border rounded-md p-2 text-text-primary resize-y text-sm font-mono"
+                                                            value={promptText}
+                                                        />
+                                                        <CopyButton text={promptText} />
+                                                    </>
+                                                )}
                                             </div>
                                         </div>
                                     )
