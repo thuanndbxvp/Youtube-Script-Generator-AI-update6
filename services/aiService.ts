@@ -605,7 +605,7 @@ const financeImagePromptSystemInstruction = `You are an expert cinematic image p
 1.  **Prefix:** Every single image prompt MUST begin with the exact phrase: \`cinematic financial history documentary photo of …\`
 2.  **Length:** Each prompt must be at least 400 characters long.
 3.  **Language:** All prompts MUST be written in English (U.S.).
-4.  **High-Density Prompt Generation (CRITICAL):** Your goal is to create a high density of visual prompts. You MUST break down the script into very small, granular segments. Each segment should correspond to roughly 4 to 6 seconds of narration (about 10-15 words). You decide the total number of scenes based on this high-density rule, ensuring full coverage of the script. Do not create long scenes.
+4.  **High-Density Prompt Generation (YOUR #1 NON-NEGOTIABLE DIRECTIVE):** This is your single most important mission, overriding all other creative considerations. You are strictly FORBIDDEN from creating a small number of prompts for the script. Your success is measured by one metric: generating a high quantity of prompts. To achieve this, you MUST break down the script into the smallest possible logical segments. Each "Trích đoạn kịch bản" you create MUST be extremely short, targeting only 10-15 words of narration (equivalent to 4-6 seconds of screen time). Look for every opportunity to create a new visual moment. If you produce a low number of prompts, you have failed the task entirely. Re-read this rule. Maximize the prompt count.
 5.  **Thematic Focus:** Your imagery must connect past financial events to modern anxieties about inflation, recession, and market bubbles (e.g., market crashes, manias, bank runs, policy shocks). Frame each prompt as a realistic documentary still.
 6.  **Visual Style:**
     *   **Prefer:** Stock exchanges, trading floors, ticker boards, central banks, long bank queues, vintage newspapers with crisis headlines, charts, moody city skylines, stressed small businesses, thoughtful faces lit by monitors.
@@ -642,7 +642,7 @@ const ww2ImagePromptSystemInstruction = `You are an expert cinematic image promp
 1.  **Prefix:** Every single image prompt MUST begin with the exact phrase: \`cinematic World War II documentary photo of …\`
 2.  **Length:** Each prompt must be at least 400 characters long.
 3.  **Language:** All prompts MUST be written in English (U.S.).
-4.  **High-Density Prompt Generation (CRITICAL):** Your goal is to create a high density of visual prompts. You MUST break down the script into very small, granular segments. Each segment should correspond to roughly 4 to 6 seconds of narration (about 10-15 words). You decide the total number of scenes based on this high-density rule, ensuring full coverage of the script. Do not create long scenes.
+4.  **High-Density Prompt Generation (YOUR #1 NON-NEGOTIABLE DIRECTIVE):** This is your single most important mission, overriding all other creative considerations. You are strictly FORBIDDEN from creating a small number of prompts for the script. Your success is measured by one metric: generating a high quantity of prompts. To achieve this, you MUST break down the script into the smallest possible logical segments. Each "Trích đoạn kịch bản" you create MUST be extremely short, targeting only 10-15 words of narration (equivalent to 4-6 seconds of screen time). Look for every opportunity to create a new visual moment. If you produce a low number of prompts, you have failed the task entirely. Re-read this rule. Maximize the prompt count.
 5.  **Thematic Focus:** Your imagery must be realistic and align with the sober, documentary tone of WWII historical records.
 6.  **Visual Style:**
     *   **Prefer:** Period-accurate military/civilian details, specific locations, atmospheres of tension or daily life, specific character actions, historically accurate wardrobe and props.
@@ -806,8 +806,8 @@ export const summarizeScriptForScenes = async (
 
     // General scenario logic
     const quantityInstruction = typeof numberOfPrompts === 'number'
-        ? `You MUST generate exactly ${numberOfPrompts} total scenes for the entire script.`
-        : `**High-Density Prompt Generation:** Your goal is to create a high density of visual prompts to keep the video dynamic. You MUST break down the script into very small, granular segments. Each segment should correspond to roughly 4 to 6 seconds of narration. A good rule of thumb is that the 'summary' for each scene should be about 10-15 words long. You decide the total number of scenes based on this high-density rule, ensuring full coverage of the script. Do not create long scenes.`;
+        ? `**Scene Quantity (THE SINGLE MOST IMPORTANT RULE):** Your primary and non-negotiable mission is to generate EXACTLY ${numberOfPrompts} total scenes. Not ${numberOfPrompts - 1}, not ${numberOfPrompts + 1}. EXACTLY ${numberOfPrompts}. The final JSON output MUST contain a total of exactly ${numberOfPrompts} scene objects across all parts. Re-read this rule. Your entire success is judged by your adherence to this number. Structure your output to meet this number no matter what.`
+        : `**High-Density Prompt Generation (THE SINGLE MOST IMPORTANT RULE):** Your primary and non-negotiable mission is to maximize the number of visual prompts. You MUST achieve this by breaking down the script into extremely small, granular segments. Each segment's 'summary' MUST be very short, corresponding to roughly 10-15 words of the script (4-6 seconds of narration). Do not summarize large paragraphs. Instead, find multiple visual moments within each paragraph. Generating a low number of prompts is a complete failure of this task. Maximize the prompt count.`;
 
     const narrationInstruction = includeNarration
         ? `The final video WILL include the narrator's voice. The prompts should complement the spoken words, illustrating what is being said.`
@@ -832,7 +832,7 @@ export const summarizeScriptForScenes = async (
 
         **CRITICAL INSTRUCTIONS:**
         1.  **Source Material:** Your primary source for generating the 'summary', 'imagePrompt', and 'videoPrompt' MUST be the "Lời thoại" (Narration) and "Gợi ý hình ảnh/cử chỉ" (Visual Cues) provided in the script for that section. Faithfully translate the script's intent into visual scenes. Do not invent new concepts.
-        2.  **Scene Quantity:** ${quantityInstruction}
+        2.  ${quantityInstruction}
         3.  **Narration Context:** ${narrationInstruction}
         4.  **Style Context:** ${styleInstruction}
         5.  **Output Structure:**

@@ -74,6 +74,7 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
     const [referenceImage, setReferenceImage] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<'image' | 'video'>('image');
     const [generatingVideoPromptKey, setGeneratingVideoPromptKey] = useState<string | null>(null);
+    const [isBulkGenerating, setIsBulkGenerating] = useState(false);
 
 
     useEffect(() => {
@@ -83,6 +84,7 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
             setIncludeNarration(false);
             setScenarioType('general');
             setReferenceImage(null);
+            setIsBulkGenerating(false);
         }
     }, [isOpen, summary, isLoading, error]);
 
@@ -110,6 +112,43 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
         };
         await onGenerateVideoPrompt(scene, partIndex, config);
         setGeneratingVideoPromptKey(null);
+    };
+
+    const handleGenerateAllVideoPrompts = async () => {
+        if (!summary) return;
+
+        setIsBulkGenerating(true);
+        
+        const config: SummarizeConfig = {
+            numberOfPrompts: isAutoPrompts ? 'auto' : parseInt(promptCountInput, 10),
+            includeNarration,
+            scenarioType,
+            referenceImage,
+        };
+
+        const scenesToGenerate: { scene: SceneSummary, partIndex: number }[] = [];
+        summary.forEach((part, partIndex) => {
+            part.scenes.forEach(scene => {
+                const needsGeneration = (scenarioType === 'finance' || scenarioType === 'ww2') && scene.videoPrompt.startsWith('Prompt chưa được tạo.');
+                if (needsGeneration) {
+                    scenesToGenerate.push({ scene, partIndex });
+                }
+            });
+        });
+
+        for (const { scene, partIndex } of scenesToGenerate) {
+            try {
+                const key = `${partIndex}-${scene.sceneNumber}`;
+                setGeneratingVideoPromptKey(key); // Show progress on the current item
+                await onGenerateVideoPrompt(scene, partIndex, config);
+            } catch (error) {
+                console.error(`Error generating prompt for scene ${scene.sceneNumber}:`, error);
+                // The error is already handled inside onGenerateVideoPrompt which updates the UI
+            }
+        }
+
+        setGeneratingVideoPromptKey(null); // Clear individual loader state
+        setIsBulkGenerating(false);
     };
 
     const handleDownloadExcel = () => {
@@ -143,6 +182,11 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
 
     const hasGenerated = summary || isLoading || error;
     const isGenerateButtonDisabled = !isAutoPrompts && (!promptCountInput || parseInt(promptCountInput) <= 0);
+    const needsBulkGeneration = summary?.some(part => 
+        part.scenes.some(scene => 
+            (scenarioType === 'finance' || scenarioType === 'ww2') && scene.videoPrompt.startsWith('Prompt chưa được tạo.')
+        )
+    ) ?? false;
 
     const renderContent = () => {
         if (isLoading) return <LoadingSkeleton />;
@@ -256,7 +300,7 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
                                                     <div className="w-full bg-secondary border border-border rounded-md p-4 text-center">
                                                         <button
                                                             onClick={() => handleGenerateVideoPromptClick(scene, partIndex)}
-                                                            disabled={isGeneratingThisPrompt}
+                                                            disabled={isGeneratingThisPrompt || isBulkGenerating}
                                                             className="flex items-center justify-center mx-auto bg-accent/80 hover:bg-accent text-white font-semibold py-2 px-4 rounded-lg transition text-sm disabled:opacity-50"
                                                         >
                                                             {isGeneratingThisPrompt ? (
@@ -313,23 +357,43 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
                     {renderContent()}
                 </div>
                 <div className="p-4 border-t border-border flex justify-end items-center gap-4">
-                    {isLoading && (
+                    {isBulkGenerating ? (
+                        <p className="text-xs text-accent flex-grow">Đang tạo prompt hàng loạt, vui lòng chờ...</p>
+                    ) : isLoading ? (
                         <p className="text-xs text-accent flex-grow">AI đang sáng tạo, vui lòng chờ trong giây lát...</p>
-                    )}
+                    ) : null}
 
                     {!hasGenerated ? (
                         <button onClick={handleGenerateClick} disabled={isGenerateButtonDisabled} className="bg-accent hover:brightness-110 text-white font-bold py-2 px-4 rounded-md transition disabled:opacity-50 disabled:cursor-not-allowed">
                             Bắt đầu chuyển thể
                         </button>
                     ) : (
-                         <button 
-                            onClick={handleDownloadExcel}
-                            disabled={isLoading || !summary || summary.length === 0}
-                            className="flex items-center gap-2 text-sm bg-secondary/70 hover:bg-secondary text-text-secondary font-semibold py-2 px-4 rounded-md transition border border-border disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            <DownloadIcon className="w-5 h-5" />
-                            Download Prompts
-                        </button>
+                         <>
+                            {needsBulkGeneration && (
+                                <button
+                                    onClick={handleGenerateAllVideoPrompts}
+                                    disabled={isBulkGenerating || !!generatingVideoPromptKey || isLoading}
+                                    className="flex items-center gap-2 text-sm bg-accent/80 hover:bg-accent text-white font-semibold py-2 px-4 rounded-md transition disabled:opacity-50"
+                                >
+                                    {isBulkGenerating ? (
+                                        <>
+                                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                            <span>Đang tạo...</span>
+                                        </>
+                                    ) : (
+                                        'Tạo hàng loạt'
+                                    )}
+                                </button>
+                            )}
+                             <button 
+                                onClick={handleDownloadExcel}
+                                disabled={isBulkGenerating || isLoading || !summary || summary.length === 0}
+                                className="flex items-center gap-2 text-sm bg-secondary/70 hover:bg-secondary text-text-secondary font-semibold py-2 px-4 rounded-md transition border border-border disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <DownloadIcon className="w-5 h-5" />
+                                Download Prompts
+                            </button>
+                         </>
                     )}
                     
                     <button onClick={onClose} className="bg-primary hover:bg-primary/70 text-text-secondary font-bold py-2 px-4 rounded-md transition border border-border">
