@@ -827,6 +827,24 @@ const App: React.FC = () => {
   }, [generatedScript, aiProvider, selectedModel]);
 
   const handleGenerateSingleVideoPrompt = useCallback(async (scene: SceneSummary, partIndex: number, config: SummarizeConfig) => {
+    // This function clears the error from the UI to indicate a retry has started.
+    const updateSceneToRetrying = (prevData: ScriptPartSummary[] | null): ScriptPartSummary[] | null => {
+        if (!prevData) return null;
+        const newData = JSON.parse(JSON.stringify(prevData));
+        const part = newData[partIndex];
+        if (part && part.scenes) {
+            const sceneToUpdate = part.scenes.find((s: any) => s.sceneNumber === scene.sceneNumber);
+            // Change the text to trigger the placeholder/loading UI in the modal
+            if (sceneToUpdate && sceneToUpdate.videoPrompt.startsWith('LỖI:')) {
+                sceneToUpdate.videoPrompt = 'Prompt chưa được tạo.';
+            }
+        }
+        return newData;
+    };
+
+    // Immediately update the state to remove the error message from the UI.
+    setSummarizedScript(updateSceneToRetrying);
+    
     try {
         const videoPrompt = await generateSingleVideoPrompt(
             scene.summary,
