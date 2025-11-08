@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { ClipboardIcon } from './icons/ClipboardIcon';
 import { DownloadIcon } from './icons/DownloadIcon';
-import type { ScriptPartSummary, ScriptType, ScenarioType, SummarizeConfig } from '../types';
+import type { ScriptPartSummary, ScriptType, ScenarioType, SummarizeConfig, SceneSummary } from '../types';
 import { ImageUploader } from './ImageUploader';
 
 // Make TypeScript aware of the global XLSX object from the CDN
@@ -18,6 +18,7 @@ interface SummarizeModalProps {
   scriptType: ScriptType;
   title: string;
   onGenerate: (config: SummarizeConfig) => void;
+  onGenerateVideoPrompt: (scene: SceneSummary, partIndex: number, config: SummarizeConfig) => Promise<void>;
 }
 
 const LoadingSkeleton: React.FC = () => (
@@ -65,13 +66,14 @@ const CopyButton: React.FC<{ text: string }> = ({ text }) => {
     );
 };
 
-export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose, summary, isLoading, error, scriptType, title, onGenerate }) => {
+export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose, summary, isLoading, error, scriptType, title, onGenerate, onGenerateVideoPrompt }) => {
     const [isAutoPrompts, setIsAutoPrompts] = useState(true);
     const [promptCountInput, setPromptCountInput] = useState('10');
     const [includeNarration, setIncludeNarration] = useState(false);
     const [scenarioType, setScenarioType] = useState<ScenarioType>('general');
     const [referenceImage, setReferenceImage] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<'image' | 'video'>('image');
+    const [generatingVideoPromptKey, setGeneratingVideoPromptKey] = useState<string | null>(null);
 
 
     useEffect(() => {
@@ -95,6 +97,19 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
             referenceImage,
         };
         onGenerate(config);
+    };
+
+    const handleGenerateVideoPromptClick = async (scene: SceneSummary, partIndex: number) => {
+        const key = `${partIndex}-${scene.sceneNumber}`;
+        setGeneratingVideoPromptKey(key);
+        const config: SummarizeConfig = {
+            numberOfPrompts: isAutoPrompts ? 'auto' : parseInt(promptCountInput, 10),
+            includeNarration,
+            scenarioType,
+            referenceImage,
+        };
+        await onGenerateVideoPrompt(scene, partIndex, config);
+        setGeneratingVideoPromptKey(null);
     };
 
     const handleDownloadExcel = () => {
@@ -220,13 +235,16 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
                     </div>
                 </div>
                 <div className="space-y-8">
-                    {summary.map((part, index) => (
-                        <div key={index} className="bg-primary p-4 rounded-lg border border-border">
+                    {summary.map((part, partIndex) => (
+                        <div key={partIndex} className="bg-primary p-4 rounded-lg border border-border">
                             <h3 className="text-lg font-bold text-accent mb-4 border-b border-border pb-2">{part.partTitle}</h3>
                             <div className="space-y-4">
                                 {part.scenes.map(scene => {
                                     const promptText = activeTab === 'image' ? scene.imagePrompt : scene.videoPrompt;
-                                    const isPlaceholder = promptText === 'Chức năng đang phát triển';
+                                    const isVideoPlaceholder = activeTab === 'video' && (scenarioType === 'finance' || scenarioType === 'ww2') && promptText.startsWith('Prompt chưa được tạo.');
+                                    const isVideoError = activeTab === 'video' && promptText.startsWith('LỖI:');
+                                    const currentKey = `${partIndex}-${scene.sceneNumber}`;
+                                    const isGeneratingThisPrompt = generatingVideoPromptKey === currentKey;
                                     const summaryLabel = (scenarioType === 'finance' || scenarioType === 'ww2') ? 'Trích đoạn kịch bản' : `Cảnh ${scene.sceneNumber}`;
 
                                     return (
@@ -234,8 +252,25 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
                                             <p className="text-sm text-text-secondary"><strong className="text-text-primary font-semibold">{summaryLabel}:</strong> {scene.summary}</p>
                                             <div className="mt-2">
                                                 <label className="block text-xs font-semibold text-text-secondary mb-1">Prompt {activeTab === 'image' ? 'Ảnh' : 'Video'} (Tiếng Anh)</label>
-                                                {isPlaceholder ? (
-                                                     <div className="w-full bg-secondary border border-border rounded-md p-4 text-text-secondary text-center text-sm italic">
+                                                {isVideoPlaceholder ? (
+                                                    <div className="w-full bg-secondary border border-border rounded-md p-4 text-center">
+                                                        <button
+                                                            onClick={() => handleGenerateVideoPromptClick(scene, partIndex)}
+                                                            disabled={isGeneratingThisPrompt}
+                                                            className="flex items-center justify-center mx-auto bg-accent/80 hover:bg-accent text-white font-semibold py-2 px-4 rounded-lg transition text-sm disabled:opacity-50"
+                                                        >
+                                                            {isGeneratingThisPrompt ? (
+                                                                <>
+                                                                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                                                    <span>Đang tạo...</span>
+                                                                </>
+                                                            ): (
+                                                                <span>Tạo prompt</span>
+                                                            )}
+                                                        </button>
+                                                    </div>
+                                                ) : isVideoError ? (
+                                                     <div className="w-full bg-red-900/50 border border-red-500/50 rounded-md p-3 text-red-300 text-sm">
                                                         {promptText}
                                                      </div>
                                                 ) : (

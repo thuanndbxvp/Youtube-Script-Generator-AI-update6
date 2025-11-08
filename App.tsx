@@ -14,9 +14,9 @@ import { SavedIdeasModal } from './components/SavedIdeasModal';
 import { SideToolsPanel } from './components/SideToolsPanel';
 import { TtsModal } from './components/TtsModal';
 import { ScoreModal } from './components/ScoreModal';
-import { generateScript, generateScriptOutline, generateTopicSuggestions, reviseScript, generateScriptPart, extractDialogue, generateKeywordSuggestions, validateApiKey, generateVisualPrompt, generateAllVisualPrompts, summarizeScriptForScenes, suggestStyleOptions, parseIdeasFromFile, getElevenlabsVoices, generateElevenlabsTts, scoreScript } from './services/aiService';
+import { generateScript, generateScriptOutline, generateTopicSuggestions, reviseScript, generateScriptPart, extractDialogue, generateKeywordSuggestions, validateApiKey, generateVisualPrompt, generateAllVisualPrompts, summarizeScriptForScenes, suggestStyleOptions, parseIdeasFromFile, getElevenlabsVoices, generateElevenlabsTts, scoreScript, generateSingleVideoPrompt } from './services/aiService';
 // FIX: Added SummarizeConfig to the import from types.ts.
-import type { StyleOptions, FormattingOptions, LibraryItem, GenerationParams, VisualPrompt, AllVisualPromptsResult, ScriptPartSummary, ScriptType, NumberOfSpeakers, CachedData, TopicSuggestionItem, SavedIdea, AiProvider, WordCountStats, ElevenlabsVoice, SummarizeConfig } from './types';
+import type { StyleOptions, FormattingOptions, LibraryItem, GenerationParams, VisualPrompt, AllVisualPromptsResult, ScriptPartSummary, ScriptType, NumberOfSpeakers, CachedData, TopicSuggestionItem, SavedIdea, AiProvider, WordCountStats, ElevenlabsVoice, SummarizeConfig, SceneSummary } from './types';
 import { STYLE_OPTIONS, LANGUAGE_OPTIONS, GEMINI_MODELS } from './constants';
 import { CogIcon } from './components/icons/CogIcon';
 
@@ -775,6 +775,52 @@ const App: React.FC = () => {
     }
   }, [generatedScript, aiProvider, selectedModel]);
 
+  const handleGenerateSingleVideoPrompt = useCallback(async (scene: SceneSummary, partIndex: number, config: SummarizeConfig) => {
+    try {
+        const videoPrompt = await generateSingleVideoPrompt(
+            scene.summary,
+            config.scenarioType,
+            aiProvider,
+            selectedModel,
+            config.referenceImage
+        );
+        
+        const updateCacheAndState = (prevData: ScriptPartSummary[] | null): ScriptPartSummary[] | null => {
+            if (!prevData) return null;
+            const newData = JSON.parse(JSON.stringify(prevData));
+            const part = newData[partIndex];
+            if (part && part.scenes) {
+                const sceneToUpdate = part.scenes.find((s: any) => s.sceneNumber === scene.sceneNumber);
+                if (sceneToUpdate) {
+                    sceneToUpdate.videoPrompt = videoPrompt;
+                }
+            }
+            return newData;
+        };
+
+        setSummarizedScriptCache(updateCacheAndState);
+        setSummarizedScript(updateCacheAndState);
+
+    } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Lỗi không xác định khi tạo prompt video.';
+        const updateCacheAndStateWithError = (prevData: ScriptPartSummary[] | null): ScriptPartSummary[] | null => {
+             if (!prevData) return null;
+            const newData = JSON.parse(JSON.stringify(prevData));
+            const part = newData[partIndex];
+            if (part && part.scenes) {
+                const sceneToUpdate = part.scenes.find((s: any) => s.sceneNumber === scene.sceneNumber);
+                if (sceneToUpdate) {
+                    sceneToUpdate.videoPrompt = `LỖI: ${errorMessage}`;
+                }
+            }
+            return newData;
+        };
+        
+        setSummarizedScriptCache(updateCacheAndStateWithError);
+        setSummarizedScript(updateCacheAndStateWithError);
+    }
+  }, [aiProvider, selectedModel]);
+
   const handleScoreScript = useCallback(async () => {
     if (!generatedScript.trim()) return;
     
@@ -1136,6 +1182,7 @@ const App: React.FC = () => {
         scriptType={scriptType}
         title={title}
         onGenerate={handleGenerateSummary}
+        onGenerateVideoPrompt={handleGenerateSingleVideoPrompt}
       />
       <TtsModal
         isOpen={isTtsModalOpen}

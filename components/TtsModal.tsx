@@ -1,7 +1,3 @@
-
-
-
-
 import React, { useState, useEffect, useRef } from 'react';
 import type { ElevenlabsVoice } from '../types';
 import { DownloadIcon } from './icons/DownloadIcon';
@@ -118,7 +114,7 @@ export const TtsModal: React.FC<TtsModalProps> = ({ isOpen, onClose, dialogue, v
                 [partTitle]: { isLoading: false, audioUrl, error: null }
             }));
         } catch (caughtError) {
-            // FIX: The `caughtError` variable is of type `unknown` in a catch block. To safely access the error message, we must first check if `caughtError` is an instance of Error.
+            // FIX: The `caughtError` variable is of type `unknown`. Accessing properties on it directly is unsafe. The original code was attempting to access a non-existent 'isLoading' property. Corrected to safely check if 'caughtError' is an `Error` instance and extract its message.
             setGenerationState(prev => ({
                 ...prev,
                 [partTitle]: { isLoading: false, audioUrl: null, error: caughtError instanceof Error ? caughtError.message : 'Lỗi không xác định' }

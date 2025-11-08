@@ -599,54 +599,35 @@ export const generateAllVisualPrompts = async (script: string, provider: AiProvi
     }
 };
 
-const financeCombinedPromptSystemInstruction = `You are an expert cinematic prompt generator for a financial history documentary. You will be given a script and optionally a reference image. Your task is to analyze the materials and generate, in bulk and in a single run, all prompts needed to cover the entire script. For each excerpt of the script, you must generate TWO distinct prompts: one for a still image, and one for a short video clip.
+const financeImagePromptSystemInstruction = `You are an expert cinematic image prompt generator for a financial history documentary. You will be given a script and optionally a reference image. Your task is to analyze the materials and generate, in bulk and in a single run, all image prompts needed to cover the entire script.
 
-**Mandatory Rules for BOTH prompts:**
-1.  **Language:** All prompts MUST be written in English (U.S.).
-2.  **Thematic Focus:** Your imagery must connect past financial events to modern anxieties about inflation, recession, and market bubbles (e.g., market crashes, manias, bank runs, policy shocks). Frame each prompt as a realistic documentary still.
-3.  **Visual Style:**
+**Mandatory Rules:**
+1.  **Prefix:** Every single image prompt MUST begin with the exact phrase: \`cinematic financial history documentary photo of …\`
+2.  **Length:** Each prompt must be at least 400 characters long.
+3.  **Language:** All prompts MUST be written in English (U.S.).
+4.  **High-Density Prompt Generation (CRITICAL):** Your goal is to create a high density of visual prompts. You MUST break down the script into very small, granular segments. Each segment should correspond to roughly 4 to 6 seconds of narration (about 10-15 words). You decide the total number of scenes based on this high-density rule, ensuring full coverage of the script. Do not create long scenes.
+5.  **Thematic Focus:** Your imagery must connect past financial events to modern anxieties about inflation, recession, and market bubbles (e.g., market crashes, manias, bank runs, policy shocks). Frame each prompt as a realistic documentary still.
+6.  **Visual Style:**
     *   **Prefer:** Stock exchanges, trading floors, ticker boards, central banks, long bank queues, vintage newspapers with crisis headlines, charts, moody city skylines, stressed small businesses, thoughtful faces lit by monitors.
     *   **Avoid:** Gore, explicit violence, riots, modern brand logos, partisan propaganda. Keep institutions generic.
     *   **Reference Image:** If a reference image is provided, you MUST analyze its visual style (color palette, lighting, composition, mood, realism) and ALL generated prompts must strictly adhere to and replicate this visual style for consistency. This is your highest priority.
-4.  **Coverage:** Generate prompts for all major beats/scenes in the script. Do not stop until the entire script is covered. Avoid duplication and prioritize specificity.
-
-**Specific Rules for IMAGE Prompts:**
-1.  **Prefix:** Every single image prompt MUST begin with the exact phrase: \`cinematic financial history documentary photo of …\`
-2.  **Length:** Each image prompt must be at least 400 characters long.
-3.  **Content:** Describe a static, powerful, photographic moment that captures the essence of the script excerpt.
-
-**Specific Rules for VIDEO Prompts:**
-1.  **Prefix:** Every single video prompt MUST begin with the exact phrase: \`cinematic financial history documentary video shot of …\`
-2.  **Length & Detail:** Each video prompt must be at least 400 characters long and include comprehensive details for motion.
-3.  **Image-to-Video Motion Rules (Integrate into prompt):**
-    *   **Human subjects:** Describe subtle movements: slight head tilts, natural breathing, soft hand gestures, nuanced micro-expressions. Avoid stiffness.
-    *   **Environment:** Describe gentle ambient motion: gentle sway of papers, ticker flicker, soft reflections, drifting smoke/dust.
-    *   **Camera:** Describe a single, slow, fluid camera move: slow pan (L/R), gentle push-in or pull-out, subtle orbit.
-    *   **Technical Specs:** You MUST explicitly state the following in the prompt: \`duration 5–10s, 16:9 aspect ratio, 1080p\`.
-    *   **Style Notes:** You MUST explicitly state the following: \`preserve original grade, subtle grain/archival texture, no logos, no gore, no partisan symbols\`.
-4.  **Example Structure:** "cinematic financial history documentary video shot of ... [main description] ... with a slow pan from left to right, revealing the anxious faces. A subtle ticker flicker is visible in the background. The man in the foreground exhibits natural breathing motions. The shot should have a moody, tungsten lighting with subtle grain, duration 5–10s, 16:9 aspect ratio, 1080p, preserve original grade, no logos."
+7.  **Coverage:** Based on the high-density rule, generate prompts for the entire script. Avoid duplication and prioritize specificity.
 
 **Output Format (MANDATORY):**
 You MUST follow this exact structure for each generated item, using "---" as a separator. Do NOT include any other text, explanations, or conversational filler.
 
 ---
-Image Prompt 1 (EN):
-"cinematic financial history documentary photo of ... [your generated image prompt, ≥400 characters, following all rules]."
-
-Video Prompt 1 (EN):
-"cinematic financial history documentary video shot of ... [your generated video prompt, ≥400 characters, following all rules]."
+Prompt 1 (EN):
+"cinematic financial history documentary photo of ... [your generated prompt, ≥400 characters, following all rules]."
 
 Trích đoạn kịch bản:
-"[Copy verbatim the exact lines from the provided script that correspond to this image. Do not translate, paraphrase, or invent text. Keep the excerpt in its original language.]"
+"[Copy verbatim the exact lines from the provided script that correspond to this image. The excerpt should be short, about 10-15 words. Do not translate, paraphrase, or invent text. Keep the excerpt in its original language.]"
 ---
-Image Prompt 2 (EN):
-"..."
-
-Video Prompt 2 (EN):
-"..."
+Prompt 2 (EN):
+"cinematic financial history documentary photo of ... [your next generated prompt]."
 
 Trích đoạn kịch bản:
-"..."
+"[The next corresponding verbatim script excerpt, about 10-15 words long.]"
 ---
 ...and so on for the entire script.
 
@@ -661,12 +642,13 @@ const ww2ImagePromptSystemInstruction = `You are an expert cinematic image promp
 1.  **Prefix:** Every single image prompt MUST begin with the exact phrase: \`cinematic World War II documentary photo of …\`
 2.  **Length:** Each prompt must be at least 400 characters long.
 3.  **Language:** All prompts MUST be written in English (U.S.).
-4.  **Thematic Focus:** Your imagery must be realistic and align with the sober, documentary tone of WWII historical records.
-5.  **Visual Style:**
+4.  **High-Density Prompt Generation (CRITICAL):** Your goal is to create a high density of visual prompts. You MUST break down the script into very small, granular segments. Each segment should correspond to roughly 4 to 6 seconds of narration (about 10-15 words). You decide the total number of scenes based on this high-density rule, ensuring full coverage of the script. Do not create long scenes.
+5.  **Thematic Focus:** Your imagery must be realistic and align with the sober, documentary tone of WWII historical records.
+6.  **Visual Style:**
     *   **Prefer:** Period-accurate military/civilian details, specific locations, atmospheres of tension or daily life, specific character actions, historically accurate wardrobe and props.
     *   **Avoid:** Invented facts, modern elements, gore, or sensationalism.
     *   **Reference Image:** If a reference image is provided, you MUST analyze its visual style (color grading, lighting, composition, realism) and ALL generated prompts must strictly adhere to and replicate this visual style for consistency. This is your highest priority.
-6.  **Coverage:** Generate prompts for all major beats/scenes in the script. Do not stop until the entire script is covered. Avoid duplication and prioritize specificity.
+7.  **Coverage:** Based on the high-density rule, generate prompts for the entire script. Avoid duplication and prioritize specificity.
 
 **Output Format (MANDATORY):**
 You MUST follow this exact structure for each generated item, using "---" as a separator. Do NOT include any other text, explanations, or conversational filler.
@@ -676,13 +658,13 @@ Prompt 1 (EN):
 "cinematic World War II documentary photo of ... [your generated prompt, ≥400 characters, following all rules]."
 
 Trích đoạn kịch bản:
-"[Copy verbatim the exact lines from the provided script that correspond to this image. Do not translate, paraphrase, or invent text. Keep the excerpt in its original language. Append timestamps/page numbers if they exist.]"
+"[Copy verbatim the exact lines from the provided script that correspond to this image. The excerpt should be short, about 10-15 words. Do not translate, paraphrase, or invent text. Keep the excerpt in its original language. Append timestamps/page numbers if they exist.]"
 ---
 Prompt 2 (EN):
 "cinematic World War II documentary photo of ... [your next generated prompt]."
 
 Trích đoạn kịch bản:
-"[The next corresponding verbatim script excerpt.]"
+"[The next corresponding verbatim script excerpt, about 10-15 words long.]"
 ---
 ...and so on for the entire script.
 
@@ -692,7 +674,7 @@ Now, analyze the script provided by the user and generate the complete list of p
 `;
 
 
-function parseSpecialScenarioPrompts(responseText: string, partTitle: string): ScriptPartSummary[] {
+function parseSpecialScenarioPrompts(responseText: string, partTitle: string, scenarioType: ScenarioType): ScriptPartSummary[] {
     const scenes: SceneSummary[] = [];
     // Split by '---' which separates each scene block
     const blocks = responseText.split('---').filter(b => b.trim());
@@ -712,12 +694,10 @@ function parseSpecialScenarioPrompts(responseText: string, partTitle: string): S
             imageMatch = block.match(/Prompt\s*\d*\s*\(EN\):\s*([\s\S]*?)(?=Trích đoạn kịch bản:|$)/);
         }
         
-        // Try to find a video prompt. It must be labeled "Video Prompt".
-        const videoMatch = block.match(/Video\s+Prompt\s*\d*\s*\(EN\):\s*([\s\S]*?)(?=Trích đoạn kịch bản:|$)/);
-
-        // Process the matches
         const imagePrompt = imageMatch ? imageMatch[1].trim().replace(/^"|"$/g, '') : 'Lỗi phân tích prompt ảnh.';
-        const videoPrompt = videoMatch ? videoMatch[1].trim().replace(/^"|"$/g, '') : 'Chức năng đang phát triển';
+        const videoPrompt = (scenarioType === 'ww2' || scenarioType === 'finance') 
+            ? 'Prompt chưa được tạo.' 
+            : 'Chức năng đang phát triển';
 
         scenes.push({
             sceneNumber: index + 1,
@@ -758,7 +738,7 @@ export const summarizeScriptForScenes = async (
     // Handle Finance and WW2 scenarios with their unique prompt and parsing
     if (scenarioType === 'finance' || scenarioType === 'ww2') {
         const systemInstruction = scenarioType === 'finance' 
-            ? financeCombinedPromptSystemInstruction 
+            ? financeImagePromptSystemInstruction 
             : ww2ImagePromptSystemInstruction;
         
         const partTitle = scenarioType === 'finance'
@@ -817,7 +797,7 @@ export const summarizeScriptForScenes = async (
                 if (!response.ok) throw new Error(JSON.stringify(data));
                 responseText = data.choices[0].message.content;
             }
-            return parseSpecialScenarioPrompts(responseText, partTitle);
+            return parseSpecialScenarioPrompts(responseText, partTitle, scenarioType);
         } catch (error) {
             throw handleApiError(error, `tạo prompt cho kịch bản ${partTitle}`);
         }
@@ -1094,3 +1074,118 @@ export const generateElevenlabsTts = async (text: string, voiceId: string): Prom
         throw handleApiError(error, 'tạo âm thanh từ ElevenLabs');
     }
 }
+
+const financeVideoPromptSystemInstruction = `You are an expert cinematic video prompt generator for a financial history documentary. You will be given a script excerpt and optionally a reference image. Your task is to generate ONE detailed video prompt.
+
+**Mandatory Rules:**
+1.  **Prefix:** The video prompt MUST begin with the exact phrase: \`cinematic financial history documentary video shot of …\`
+2.  **Length & Detail:** The video prompt must be at least 400 characters long and include comprehensive details for motion.
+3.  **Language:** The prompt MUST be written in English (U.S.).
+4.  **Image-to-Video Motion Rules (Integrate into prompt):**
+    *   **Human subjects:** Describe subtle movements: slight head tilts, natural breathing, soft hand gestures, nuanced micro-expressions. Avoid stiffness.
+    *   **Environment:** Describe gentle ambient motion: gentle sway of papers, ticker flicker, soft reflections, drifting smoke/dust.
+    *   **Camera:** Describe a single, slow, fluid camera move: slow pan (L/R), gentle push-in or pull-out, subtle orbit.
+    *   **Technical Specs:** You MUST explicitly state the following in the prompt: \`duration 5–10s, 16:9 aspect ratio, 1080p\`.
+    *   **Style Notes:** You MUST explicitly state the following: \`preserve original grade, subtle grain/archival texture, no logos, no gore, no partisan symbols\`.
+5.  **Reference Image:** If a reference image is provided, you MUST analyze its visual style (color, lighting, mood) and the generated prompt must strictly adhere to this style.
+6.  **Alignment:** All factual details MUST be consistent with the provided script excerpt.
+7.  **Output Format:** Output ONLY the single, complete video prompt string. No JSON, no extra text.
+
+**Script Excerpt:**
+"""
+{script_excerpt}
+"""
+`;
+
+const ww2VideoPromptSystemInstruction = `You are an expert cinematic video prompt generator for a World War II documentary. You will be given a script excerpt and optionally a reference image. Your task is to generate ONE detailed video prompt.
+
+**Mandatory Rules:**
+1.  **Prefix:** The video prompt MUST begin with the exact phrase: \`cinematic World War II documentary video shot of …\`
+2.  **Length & Detail:** The video prompt must be at least 400 characters long and include comprehensive details for motion.
+3.  **Language:** The prompt MUST be written in English (U.S.).
+4.  **Image-to-Video Motion Rules (Integrate into prompt):**
+    *   **Human subjects:** Describe subtle, realistic movements appropriate for the scene (e.g., a soldier scanning the horizon, a civilian's anxious glance).
+    *   **Environment:** Describe authentic ambient motion: wind blowing through grass, flags waving, smoke rising from a battlefield, light reflecting off wet surfaces.
+    *   **Camera:** Describe a single, slow, documentary-style camera move: slow track, gentle push-in on a subject, or a pan across a landscape.
+    *   **Technical Specs:** You MUST explicitly state the following in the prompt: \`duration 5–10s, 16:9 aspect ratio, 1080p\`.
+    *   **Style Notes:** You MUST explicitly state the following: \`historically accurate, photorealistic, archival footage feel, subtle grain, no logos, no gore\`.
+5.  **Reference Image:** If a reference image is provided, you MUST analyze its visual style (color, lighting, mood) and the generated prompt must strictly adhere to this style.
+6.  **Alignment:** All factual details (units, equipment, locations, dates) MUST be consistent with the provided script excerpt.
+7.  **Output Format:** Output ONLY the single, complete video prompt string. No JSON, no extra text.
+
+**Script Excerpt:**
+"""
+{script_excerpt}
+"""
+`;
+
+export const generateSingleVideoPrompt = async (
+    sceneSummary: string, 
+    scenarioType: ScenarioType,
+    provider: AiProvider, 
+    model: string,
+    referenceImage?: string | null
+): Promise<string> => {
+    if (scenarioType !== 'finance' && scenarioType !== 'ww2') {
+        return 'Chức năng này chỉ dành cho kịch bản WW2 và Finance.';
+    }
+
+    const systemInstructionTemplate = scenarioType === 'finance' 
+        ? financeVideoPromptSystemInstruction
+        : ww2VideoPromptSystemInstruction;
+    
+    const fullPrompt = systemInstructionTemplate.replace('{script_excerpt}', sceneSummary);
+    
+    try {
+        const apiKey = getApiKey(provider);
+        let responseText: string;
+
+        if (provider === 'gemini') {
+            const ai = new GoogleGenAI({ apiKey });
+            let modelToUse = model;
+            let contents;
+            if (referenceImage) {
+                if (model !== 'gemini-2.5-pro') modelToUse = 'gemini-2.5-flash';
+                const base64Data = referenceImage.split(',')[1];
+                const mimeType = referenceImage.match(/data:(.*);base64,/)?.[1] || 'image/jpeg';
+                
+                const imagePart = { inlineData: { mimeType, data: base64Data } };
+                const textPart = { text: fullPrompt };
+                contents = { parts: [textPart, imagePart] };
+            } else {
+                contents = fullPrompt;
+            }
+            const response = await ai.models.generateContent({ model: modelToUse, contents });
+            responseText = response.text;
+        } else { // openai
+            let messages: any[];
+            if (referenceImage) {
+                messages = [{
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: fullPrompt },
+                        { type: 'image_url', image_url: { url: referenceImage, detail: "high" } }
+                    ]
+                }];
+            } else {
+                messages = [{ role: 'system', content: fullPrompt }];
+            }
+            const body = {
+                model: "gpt-4o",
+                messages: messages,
+                max_tokens: 1024,
+            };
+            const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}`},
+                body: JSON.stringify(body)
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(JSON.stringify(data));
+            responseText = data.choices[0].message.content;
+        }
+        return responseText.trim();
+    } catch (error) {
+        throw handleApiError(error, `tạo prompt video đơn lẻ`);
+    }
+};
