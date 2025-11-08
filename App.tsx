@@ -1,7 +1,3 @@
-
-
-
-
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { ControlPanel } from './components/ControlPanel';
 import { OutputDisplay } from './components/OutputDisplay';
@@ -331,8 +327,10 @@ const App: React.FC = () => {
         hasSummarizedScript,
     };
 
+    const now = Date.now();
     const newItem: LibraryItem = {
-      id: Date.now(),
+      id: now,
+      savedAt: now,
       title: title,
       outlineContent: outlineContent,
       script: generatedScript,
@@ -441,6 +439,8 @@ const App: React.FC = () => {
 
                 const newItem: LibraryItem = {
                     id: item.id,
+                    // Add savedAt field with backward compatibility
+                    savedAt: typeof item.savedAt === 'number' ? item.savedAt : item.id,
                     title: item.title.trim(),
                     script: item.script,
                     outlineContent: typeof item.outlineContent === 'string' ? item.outlineContent : '',
@@ -472,7 +472,7 @@ const App: React.FC = () => {
                 libraryMap.set(item.id, item);
             });
             
-            const updatedLibrary = Array.from(libraryMap.values()).sort((a, b) => b.id - a.id);
+            const updatedLibrary = Array.from(libraryMap.values()).sort((a, b) => b.savedAt - a.savedAt);
             
             setLibrary(updatedLibrary);
             localStorage.setItem('yt-script-library', JSON.stringify(updatedLibrary));

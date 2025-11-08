@@ -14,6 +14,30 @@ interface LibraryModalProps {
   onImport: (fileContent: string) => void;
 }
 
+const formatDate = (timestamp?: number) => {
+  if (!timestamp) return '';
+  try {
+    const date = new Date(timestamp);
+    // Format to HH:mm:ss - dd/MM/yyyy
+    const timeString = date.toLocaleTimeString('vi-VN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+    const dateString = date.toLocaleDateString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+    return `${timeString} - ${dateString}`;
+  } catch (e) {
+    console.error("Invalid timestamp for formatting:", timestamp);
+    return 'Invalid date';
+  }
+};
+
+
 export const LibraryModal: React.FC<LibraryModalProps> = ({ isOpen, onClose, library, onLoad, onDelete, onExport, onImport }) => {
   const importInputRef = useRef<HTMLInputElement>(null);
   
@@ -86,6 +110,7 @@ export const LibraryModal: React.FC<LibraryModalProps> = ({ isOpen, onClose, lib
                   <div className="flex-grow">
                     <h3 className="font-semibold text-text-primary">{item.title}</h3>
                     <p className="text-sm text-text-secondary mt-1 line-clamp-2">{item.outlineContent}</p>
+                    <p className="text-xs text-text-secondary/60 mt-2 font-mono">{formatDate(item.savedAt)}</p>
                   </div>
                   <div className="flex-shrink-0 flex items-center gap-2">
                     <button onClick={() => onLoad(item)} className="text-xs bg-accent hover:brightness-110 text-white font-bold py-1 px-3 rounded-md transition">Tải</button>

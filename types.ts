@@ -55,6 +55,7 @@ export interface CachedData {
 
 export interface LibraryItem {
   id: number;
+  savedAt: number;
   title: string;
   outlineContent: string;
   script: string;
