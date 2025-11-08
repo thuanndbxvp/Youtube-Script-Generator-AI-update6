@@ -2,6 +2,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import type { GenerationParams, VisualPrompt, AllVisualPromptsResult, ScriptPartSummary, StyleOptions, TopicSuggestionItem, AiProvider, ElevenlabsVoice, Expression, SummarizeConfig, SceneSummary, ScenarioType } from '../types';
 import { EXPRESSION_OPTIONS, STYLE_OPTIONS } from '../constants';
+import { apiKeyManager } from './apiKeyManager';
 
 // Helper function to detect if an error is related to API key failure
 const isKeyFailureError = (error: unknown, provider: AiProvider): boolean => {
@@ -110,25 +111,6 @@ const handleApiError = (error: unknown, context: string): Error => {
     return new Error(`Không thể ${context}. Chi tiết: ${errorMessage}`);
 };
 
-
-const getApiKey = (provider: AiProvider): string => {
-    const keysJson = localStorage.getItem('ai-api-keys');
-    if (!keysJson) {
-        throw new Error("Không tìm thấy API Key. Vui lòng thêm API Key bằng nút 'API'.");
-    }
-    try {
-        const keys: Record<AiProvider, string[]> = JSON.parse(keysJson);
-        const providerKeys = keys[provider];
-        if (!Array.isArray(providerKeys) || providerKeys.length === 0) {
-            throw new Error(`Không tìm thấy API Key cho ${provider}. Vui lòng thêm key.`);
-        }
-        return providerKeys[0]; // Use the first key
-    } catch (e) {
-        console.error("Lỗi lấy API key:", e);
-        throw new Error("Không thể đọc API Key. Dữ liệu có thể bị hỏng.");
-    }
-}
-
 export const validateApiKey = async (apiKey: string, provider: AiProvider): Promise<boolean> => {
     if (!apiKey) throw new Error("API Key không được để trống.");
     try {
@@ -164,9 +146,9 @@ export const validateApiKey = async (apiKey: string, provider: AiProvider): Prom
     }
 };
 
-const callApi = async (prompt: string, provider: AiProvider, model: string, jsonResponse = false, retried = false): Promise<string> => {
+const callApi = async (prompt: string, provider: AiProvider, model: string, jsonResponse = false): Promise<string> => {
+    const { apiKey, releaseKey } = await apiKeyManager.getAvailableKey(provider);
     try {
-        const apiKey = getApiKey(provider);
         if (provider === 'gemini') {
             const ai = new GoogleGenAI({ apiKey });
             const response = await ai.models.generateContent({
@@ -200,25 +182,20 @@ const callApi = async (prompt: string, provider: AiProvider, model: string, json
             return data.choices[0].message.content;
         }
     } catch (error) {
-        const keysJson = localStorage.getItem('ai-api-keys');
-        const hasMultipleKeys = keysJson ? (JSON.parse(keysJson)[provider]?.length > 1) : false;
-
-        if (!retried && hasMultipleKeys && isKeyFailureError(error, provider)) {
-            // Rotate key
-            const keys: Record<AiProvider, string[]> = keysJson ? JSON.parse(keysJson) : { gemini: [], openai: [], elevenlabs: [] };
-            const providerKeys = keys[provider];
-            const failedKey = providerKeys.shift(); // remove first element
-            if (failedKey) providerKeys.push(failedKey); // add to the end
-            localStorage.setItem('ai-api-keys', JSON.stringify(keys));
-            
-            // Dispatch event
-            window.dispatchEvent(new CustomEvent('apiKeyRotated', { detail: { provider } }));
-            
-            // Retry
-            return callApi(prompt, provider, model, jsonResponse, true);
+         if (isKeyFailureError(error, provider)) {
+            const keys: Record<AiProvider, string[]> = JSON.parse(localStorage.getItem('ai-api-keys') || '{}');
+            const providerKeys = keys[provider] || [];
+            if (providerKeys.length > 1) {
+                const failedKey = providerKeys.shift();
+                if (failedKey) providerKeys.push(failedKey);
+                localStorage.setItem('ai-api-keys', JSON.stringify(keys));
+                apiKeyManager.updateKeys(keys);
+                window.dispatchEvent(new CustomEvent('apiKeyRotated', { detail: { provider } }));
+            }
         }
-        // This re-throws the error to be caught by the specific function's catch block
         throw error;
+    } finally {
+        releaseKey();
     }
 }
 
@@ -797,55 +774,65 @@ export const summarizeScriptForScenes = async (
 
         const fullPrompt = `${systemInstruction}\n\n**User's Script:**\n"""\n${script}\n"""`;
         try {
-            const apiKey = getApiKey(provider);
+            
             let responseText: string;
 
             if (provider === 'gemini') {
-                const ai = new GoogleGenAI({ apiKey });
-                let modelToUse = model;
-                let contents;
-                if (referenceImage) {
-                    if (model !== 'gemini-2.5-pro') modelToUse = 'gemini-2.5-flash';
-                    const base64Data = referenceImage.split(',')[1];
-                    const mimeType = referenceImage.match(/data:(.*);base64,/)?.[1] || 'image/jpeg';
-                    
-                    const imagePart = { inlineData: { mimeType, data: base64Data } };
-                    const textPart = { text: fullPrompt };
-                    contents = { parts: [textPart, imagePart] };
-                } else {
-                    contents = fullPrompt;
-                }
-                const response = await ai.models.generateContent({
-                    model: modelToUse,
-                    contents: contents,
-                });
-                responseText = response.text;
+                 const { apiKey, releaseKey } = await apiKeyManager.getAvailableKey(provider);
+                 try {
+                    const ai = new GoogleGenAI({ apiKey });
+                    let modelToUse = model;
+                    let contents;
+                    if (referenceImage) {
+                        if (model !== 'gemini-2.5-pro') modelToUse = 'gemini-2.5-flash';
+                        const base64Data = referenceImage.split(',')[1];
+                        const mimeType = referenceImage.match(/data:(.*);base64,/)?.[1] || 'image/jpeg';
+                        
+                        const imagePart = { inlineData: { mimeType, data: base64Data } };
+                        const textPart = { text: fullPrompt };
+                        contents = { parts: [textPart, imagePart] };
+                    } else {
+                        contents = fullPrompt;
+                    }
+                    const response = await ai.models.generateContent({
+                        model: modelToUse,
+                        contents: contents,
+                    });
+                    responseText = response.text;
+                 } finally {
+                     releaseKey();
+                 }
             } else { // openai
-                let messages: any[];
-                if (referenceImage) {
-                    messages = [{
-                        role: 'user',
-                        content: [
-                            { type: 'text', text: fullPrompt },
-                            { type: 'image_url', image_url: { url: referenceImage, detail: "high" } }
-                        ]
-                    }];
-                } else {
-                     messages = [{ role: 'system', content: systemInstruction }, { role: 'user', content: script }];
+                const { apiKey, releaseKey } = await apiKeyManager.getAvailableKey(provider);
+                try {
+                    let messages: any[];
+                    if (referenceImage) {
+                        messages = [{
+                            role: 'user',
+                            content: [
+                                { type: 'text', text: fullPrompt },
+                                { type: 'image_url', image_url: { url: referenceImage, detail: "high" } }
+                            ]
+                        }];
+                    } else {
+                         messages = [{ role: 'system', content: systemInstruction }, { role: 'user', content: script }];
+                    }
+                    const body = {
+                        model: "gpt-4o", // Vision model required for image analysis
+                        messages: messages,
+                        max_tokens: 4096,
+                    };
+                    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}`},
+                        body: JSON.stringify(body)
+                    });
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(JSON.stringify(data));
+                    responseText = data.choices[0].message.content;
+                } finally {
+                    releaseKey();
                 }
-                const body = {
-                    model: "gpt-4o", // Vision model required for image analysis
-                    messages: messages,
-                    max_tokens: 4096,
-                };
-                const response = await fetch('https://api.openai.com/v1/chat/completions', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}`},
-                    body: JSON.stringify(body)
-                });
-                const data = await response.json();
-                if (!response.ok) throw new Error(JSON.stringify(data));
-                responseText = data.choices[0].message.content;
             }
             return parseSpecialScenarioPrompts(responseText, partTitle, scenarioType);
         } catch (error) {
@@ -898,62 +885,71 @@ export const summarizeScriptForScenes = async (
     `;
 
     try {
-        const apiKey = getApiKey(provider);
         let responseText: string;
 
         if (provider === 'gemini') {
-            const ai = new GoogleGenAI({ apiKey });
-            let modelToUse = model;
-            let contents;
-            if (referenceImage) {
-                 if (model !== 'gemini-2.5-pro') modelToUse = 'gemini-2.5-flash';
-                const base64Data = referenceImage.split(',')[1];
-                const mimeType = referenceImage.match(/data:(.*);base64,/)?.[1] || 'image/jpeg';
-                
-                const imagePart = { inlineData: { mimeType, data: base64Data } };
-                const textPart = { text: prompt };
-                contents = { parts: [textPart, imagePart] };
-            } else {
-                contents = prompt;
+            const { apiKey, releaseKey } = await apiKeyManager.getAvailableKey(provider);
+            try {
+                const ai = new GoogleGenAI({ apiKey });
+                let modelToUse = model;
+                let contents;
+                if (referenceImage) {
+                     if (model !== 'gemini-2.5-pro') modelToUse = 'gemini-2.5-flash';
+                    const base64Data = referenceImage.split(',')[1];
+                    const mimeType = referenceImage.match(/data:(.*);base64,/)?.[1] || 'image/jpeg';
+                    
+                    const imagePart = { inlineData: { mimeType, data: base64Data } };
+                    const textPart = { text: prompt };
+                    contents = { parts: [textPart, imagePart] };
+                } else {
+                    contents = prompt;
+                }
+                const response = await ai.models.generateContent({
+                    model: modelToUse,
+                    contents: contents,
+                    config: { responseMimeType: "application/json" }
+                });
+                responseText = response.text;
+            } finally {
+                releaseKey();
             }
-            const response = await ai.models.generateContent({
-                model: modelToUse,
-                contents: contents,
-                config: { responseMimeType: "application/json" }
-            });
-            responseText = response.text;
         } else { // openai
-            let messages: any[];
-            if (referenceImage) {
-                messages = [{
-                    role: 'user',
-                    content: [
-                        { type: 'text', text: prompt },
-                        { type: 'image_url', image_url: { url: referenceImage, detail: "high" } }
-                    ]
-                }];
-            } else {
-                messages = [{ role: 'system', content: prompt }];
+            const { apiKey, releaseKey } = await apiKeyManager.getAvailableKey(provider);
+            try {
+                let messages: any[];
+                if (referenceImage) {
+                    messages = [{
+                        role: 'user',
+                        content: [
+                            { type: 'text', text: prompt },
+                            { type: 'image_url', image_url: { url: referenceImage, detail: "high" } }
+                        ]
+                    }];
+                } else {
+                    messages = [{ role: 'system', content: prompt }];
+                }
+                const body = {
+                    model: "gpt-4o", // Vision model required for image analysis
+                    messages: messages,
+                    max_tokens: 4096,
+                    response_format: { type: 'json_object' }
+                };
+                const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify(body)
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(JSON.stringify(data));
+                }
+                responseText = data.choices[0].message.content;
+            } finally {
+                releaseKey();
             }
-            const body = {
-                model: "gpt-4o", // Vision model required for image analysis
-                messages: messages,
-                max_tokens: 4096,
-                response_format: { type: 'json_object' }
-            };
-            const response = await fetch('https://api.openai.com/v1/chat/completions', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
-                },
-                body: JSON.stringify(body)
-            });
-            const data = await response.json();
-            if (!response.ok) {
-                throw new Error(JSON.stringify(data));
-            }
-            responseText = data.choices[0].message.content;
         }
 
         const jsonResponse = JSON.parse(responseText);
@@ -1073,8 +1069,8 @@ export const scoreScript = async (script: string, title: string, provider: AiPro
 };
 
 export const getElevenlabsVoices = async (): Promise<ElevenlabsVoice[]> => {
+    const { apiKey, releaseKey } = await apiKeyManager.getAvailableKey('elevenlabs');
     try {
-        const apiKey = getApiKey('elevenlabs');
         const response = await fetch('https://api.elevenlabs.io/v1/voices', {
             headers: { 'xi-api-key': apiKey }
         });
@@ -1086,15 +1082,17 @@ export const getElevenlabsVoices = async (): Promise<ElevenlabsVoice[]> => {
         return data.voices as ElevenlabsVoice[];
     } catch (error) {
         throw handleApiError(error, 'lấy danh sách giọng nói từ ElevenLabs');
+    } finally {
+        releaseKey();
     }
 }
 
-export const generateElevenlabsTts = async (text: string, voiceId: string, retried = false): Promise<string> => {
+export const generateElevenlabsTts = async (text: string, voiceId: string): Promise<string> => {
     if (!text || !voiceId) {
         throw new Error("Cần có văn bản và ID giọng nói để tạo âm thanh.");
     }
+    const { apiKey, releaseKey } = await apiKeyManager.getAvailableKey('elevenlabs');
     try {
-        const apiKey = getApiKey('elevenlabs');
         const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
             method: 'POST',
             headers: {
@@ -1114,6 +1112,17 @@ export const generateElevenlabsTts = async (text: string, voiceId: string, retri
 
         if (!response.ok) {
             const errorText = await response.text();
+             if (isKeyFailureError(new Error(errorText), 'elevenlabs')) {
+                const keys: Record<AiProvider, string[]> = JSON.parse(localStorage.getItem('ai-api-keys') || '{}');
+                const providerKeys = keys['elevenlabs'] || [];
+                if (providerKeys.length > 1) {
+                    const failedKey = providerKeys.shift();
+                    if (failedKey) providerKeys.push(failedKey);
+                    localStorage.setItem('ai-api-keys', JSON.stringify(keys));
+                    apiKeyManager.updateKeys(keys);
+                    window.dispatchEvent(new CustomEvent('apiKeyRotated', { detail: { provider: 'elevenlabs' } }));
+                }
+            }
             throw new Error(errorText);
         }
 
@@ -1121,21 +1130,9 @@ export const generateElevenlabsTts = async (text: string, voiceId: string, retri
         const audioUrl = URL.createObjectURL(audioBlob);
         return audioUrl;
     } catch (error) {
-        const keysJson = localStorage.getItem('ai-api-keys');
-        const hasMultipleKeys = keysJson ? (JSON.parse(keysJson)['elevenlabs']?.length > 1) : false;
-
-        if (!retried && hasMultipleKeys && isKeyFailureError(error, 'elevenlabs')) {
-            const keys: Record<AiProvider, string[]> = keysJson ? JSON.parse(keysJson) : { gemini: [], openai: [], elevenlabs: [] };
-            const providerKeys = keys['elevenlabs'];
-            const failedKey = providerKeys.shift();
-            if (failedKey) providerKeys.push(failedKey);
-            localStorage.setItem('ai-api-keys', JSON.stringify(keys));
-            
-            window.dispatchEvent(new CustomEvent('apiKeyRotated', { detail: { provider: 'elevenlabs' } }));
-            
-            return generateElevenlabsTts(text, voiceId, true); // Retry once
-        }
         throw handleApiError(error, 'tạo âm thanh từ ElevenLabs');
+    } finally {
+        releaseKey();
     }
 }
 
@@ -1201,52 +1198,60 @@ export const generateSingleVideoPrompt = async (
     const fullPrompt = systemInstructionTemplate.replace('{script_excerpt}', sceneSummary);
     
     try {
-        const apiKey = getApiKey(provider);
         let responseText: string;
-
         if (provider === 'gemini') {
-            const ai = new GoogleGenAI({ apiKey });
-            let modelToUse = model;
-            let contents;
-            if (referenceImage) {
-                if (model !== 'gemini-2.5-pro') modelToUse = 'gemini-2.5-flash';
-                const base64Data = referenceImage.split(',')[1];
-                const mimeType = referenceImage.match(/data:(.*);base64,/)?.[1] || 'image/jpeg';
-                
-                const imagePart = { inlineData: { mimeType, data: base64Data } };
-                const textPart = { text: fullPrompt };
-                contents = { parts: [textPart, imagePart] };
-            } else {
-                contents = fullPrompt;
+            const { apiKey, releaseKey } = await apiKeyManager.getAvailableKey(provider);
+            try {
+                const ai = new GoogleGenAI({ apiKey });
+                let modelToUse = model;
+                let contents;
+                if (referenceImage) {
+                    if (model !== 'gemini-2.5-pro') modelToUse = 'gemini-2.5-flash';
+                    const base64Data = referenceImage.split(',')[1];
+                    const mimeType = referenceImage.match(/data:(.*);base64,/)?.[1] || 'image/jpeg';
+                    
+                    const imagePart = { inlineData: { mimeType, data: base64Data } };
+                    const textPart = { text: fullPrompt };
+                    contents = { parts: [textPart, imagePart] };
+                } else {
+                    contents = fullPrompt;
+                }
+                const response = await ai.models.generateContent({ model: modelToUse, contents });
+                responseText = response.text;
+            } finally {
+                releaseKey();
             }
-            const response = await ai.models.generateContent({ model: modelToUse, contents });
-            responseText = response.text;
         } else { // openai
-            let messages: any[];
-            if (referenceImage) {
-                messages = [{
-                    role: 'user',
-                    content: [
-                        { type: 'text', text: fullPrompt },
-                        { type: 'image_url', image_url: { url: referenceImage, detail: "high" } }
-                    ]
-                }];
-            } else {
-                messages = [{ role: 'system', content: fullPrompt }];
+            const { apiKey, releaseKey } = await apiKeyManager.getAvailableKey(provider);
+            try {
+                let messages: any[];
+                if (referenceImage) {
+                    messages = [{
+                        role: 'user',
+                        content: [
+                            { type: 'text', text: fullPrompt },
+                            { type: 'image_url', image_url: { url: referenceImage, detail: "high" } }
+                        ]
+                    }];
+                } else {
+                    messages = [{ role: 'system', content: fullPrompt }];
+                }
+                const body = {
+                    model: "gpt-4o",
+                    messages: messages,
+                    max_tokens: 1024,
+                };
+                const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}`},
+                    body: JSON.stringify(body)
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(JSON.stringify(data));
+                responseText = data.choices[0].message.content;
+            } finally {
+                releaseKey();
             }
-            const body = {
-                model: "gpt-4o",
-                messages: messages,
-                max_tokens: 1024,
-            };
-            const response = await fetch('https://api.openai.com/v1/chat/completions', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}`},
-                body: JSON.stringify(body)
-            });
-            const data = await response.json();
-            if (!response.ok) throw new Error(JSON.stringify(data));
-            responseText = data.choices[0].message.content;
         }
         return responseText.trim();
     } catch (error) {

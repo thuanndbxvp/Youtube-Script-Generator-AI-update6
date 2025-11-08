@@ -1,6 +1,7 @@
 
 
 
+
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { ControlPanel } from './components/ControlPanel';
 import { OutputDisplay } from './components/OutputDisplay';
@@ -22,6 +23,7 @@ import { STYLE_OPTIONS, LANGUAGE_OPTIONS, GEMINI_MODELS } from './constants';
 import { CogIcon } from './components/icons/CogIcon';
 import { Tooltip } from './components/Tooltip';
 import { CheckIcon } from './components/icons/CheckIcon';
+import { apiKeyManager } from './services/apiKeyManager';
 
 // Make TypeScript aware of the global XLSX object from the CDN
 declare const XLSX: any;
@@ -189,28 +191,33 @@ const App: React.FC = () => {
       if (savedIdeasData) setSavedIdeas(JSON.parse(savedIdeasData));
       
       const savedApiKeys = localStorage.getItem('ai-api-keys');
+      const defaultKeys = { gemini: [], openai: [], elevenlabs: [] };
+      let parsedKeys = defaultKeys;
+
       if (savedApiKeys) {
-        const parsedKeys = JSON.parse(savedApiKeys);
-        if (parsedKeys.gemini || parsedKeys.openai || parsedKeys.elevenlabs) {
-            setApiKeys({
-                gemini: parsedKeys.gemini || [],
-                openai: parsedKeys.openai || [],
-                elevenlabs: parsedKeys.elevenlabs || [],
-            });
+        const tempParsedKeys = JSON.parse(savedApiKeys);
+        if (tempParsedKeys.gemini || tempParsedKeys.openai || tempParsedKeys.elevenlabs) {
+            parsedKeys = {
+                gemini: tempParsedKeys.gemini || [],
+                openai: tempParsedKeys.openai || [],
+                elevenlabs: tempParsedKeys.elevenlabs || [],
+            };
         }
       } else {
           const oldGeminiKeys = localStorage.getItem('gemini-api-keys');
           if(oldGeminiKeys) {
               const parsedOldKeys = JSON.parse(oldGeminiKeys);
               if (Array.isArray(parsedOldKeys)) {
-                  const newKeys = { gemini: parsedOldKeys, openai: [], elevenlabs: [] };
-                  setApiKeys(newKeys);
-                  localStorage.setItem('ai-api-keys', JSON.stringify(newKeys));
+                  parsedKeys = { gemini: parsedOldKeys, openai: [], elevenlabs: [] };
+                  localStorage.setItem('ai-api-keys', JSON.stringify(parsedKeys));
                   localStorage.removeItem('gemini-api-keys');
               }
           }
       }
       
+      setApiKeys(parsedKeys);
+      apiKeyManager.updateKeys(parsedKeys);
+
       const savedTheme = localStorage.getItem('yt-script-theme');
       if (savedTheme) setThemeColor(savedTheme);
 
@@ -235,7 +242,9 @@ const App: React.FC = () => {
     
     const handleStorageChange = (e: StorageEvent) => {
         if (e.key === 'ai-api-keys' && e.newValue) {
-            setApiKeys(JSON.parse(e.newValue));
+            const newKeys = JSON.parse(e.newValue);
+            setApiKeys(newKeys);
+            apiKeyManager.updateKeys(newKeys);
         }
     };
     window.addEventListener('storage', handleStorageChange);
@@ -266,6 +275,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     localStorage.setItem('ai-api-keys', JSON.stringify(apiKeys));
+    apiKeyManager.updateKeys(apiKeys);
   }, [apiKeys]);
 
 
@@ -1012,6 +1022,8 @@ const App: React.FC = () => {
       : wordCount;
       
   const hasApiKey = apiKeys[aiProvider] && apiKeys[aiProvider].length > 0;
+  
+  const anyTaskRunning = isLoading || isSuggesting || isSuggestingKeywords || isSuggestingStyle || isParsing || isGeneratingSequentially;
 
   return (
     <div className="min-h-screen bg-primary">
@@ -1108,7 +1120,7 @@ const App: React.FC = () => {
             scriptParts={scriptParts}
             setScriptParts={setScriptParts}
             onGenerate={handleGenerateScript}
-            isLoading={isLoading || isSuggesting || isSuggestingKeywords || !hasApiKey}
+            isLoading={isLoading || !hasApiKey}
             onGenerateKeywordSuggestions={handleGenerateKeywordSuggestions}
             isSuggestingKeywords={isSuggestingKeywords}
             keywordSuggestions={keywordSuggestions}
@@ -1167,7 +1179,7 @@ const App: React.FC = () => {
                 setRevisionPrompt={setRevisionPrompt}
                 onRevise={handleReviseScript}
                 onSummarizeScript={handleOpenSummarizeModal}
-                isLoading={isLoading}
+                isLoading={anyTaskRunning}
                 isSummarizing={isSummarizing}
                 hasSummarizedScript={hasSummarizedScript}
                 onOpenLibrary={() => setIsLibraryOpen(true)}

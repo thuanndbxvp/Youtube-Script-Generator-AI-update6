@@ -221,7 +221,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 <Tooltip text="Dựa trên tiêu đề bạn nhập, AI sẽ đề xuất 5 ý tưởng video khác nhau với tiêu đề và dàn ý sơ bộ.">
                   <button 
                     onClick={onGenerateSuggestions} 
-                    disabled={isSuggesting || !title || isLoading}
+                    disabled={isSuggesting || !title}
                     className="w-full flex items-center justify-center bg-secondary hover:bg-secondary/70 disabled:bg-secondary/40 disabled:cursor-not-allowed text-text-primary font-bold py-2 px-4 rounded-lg transition border border-border"
                   >
                     {isSuggesting ? (
@@ -291,7 +291,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             <Tooltip text="AI sẽ gợi ý các từ khóa SEO liên quan đến chủ đề của bạn để tăng khả năng được tìm thấy.">
               <button 
                 onClick={onGenerateKeywordSuggestions} 
-                disabled={isSuggestingKeywords || !title || isLoading}
+                disabled={isSuggestingKeywords || !title}
                 className="w-full mt-2 flex items-center justify-center bg-secondary/70 hover:bg-secondary disabled:bg-secondary/40 disabled:cursor-not-allowed text-text-primary py-2 px-4 rounded-lg transition text-sm"
               >
                 {isSuggestingKeywords ? (
@@ -372,7 +372,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           <Tooltip text="Để AI phân tích chủ đề và tự động chọn lối diễn đạt và phong cách viết phù hợp nhất cho bạn.">
             <button 
                 onClick={onSuggestStyle}
-                disabled={isSuggestingStyle || !title || isLoading}
+                disabled={isSuggestingStyle || !title}
                 className="w-full mb-4 flex items-center justify-center border border-accent text-accent hover:bg-accent/20 disabled:border-border disabled:text-text-secondary disabled:cursor-not-allowed font-semibold py-2.5 px-4 rounded-lg transition"
             >
                 {isSuggestingStyle ? (
