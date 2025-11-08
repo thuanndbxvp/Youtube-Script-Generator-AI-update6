@@ -19,6 +19,8 @@ import { generateScript, generateScriptOutline, generateTopicSuggestions, revise
 import type { StyleOptions, FormattingOptions, LibraryItem, GenerationParams, VisualPrompt, AllVisualPromptsResult, ScriptPartSummary, ScriptType, NumberOfSpeakers, CachedData, TopicSuggestionItem, SavedIdea, AiProvider, WordCountStats, ElevenlabsVoice, SummarizeConfig, SceneSummary } from './types';
 import { STYLE_OPTIONS, LANGUAGE_OPTIONS, GEMINI_MODELS } from './constants';
 import { CogIcon } from './components/icons/CogIcon';
+import { Tooltip } from './components/Tooltip';
+import { CheckIcon } from './components/icons/CheckIcon';
 
 // Make TypeScript aware of the global XLSX object from the CDN
 declare const XLSX: any;
@@ -174,6 +176,8 @@ const App: React.FC = () => {
 
   const [wordCountStats, setWordCountStats] = useState<WordCountStats | null>(null);
 
+  const [notification, setNotification] = useState<string | null>(null);
+
 
   useEffect(() => {
     try {
@@ -212,7 +216,43 @@ const App: React.FC = () => {
     } catch (e) {
       console.error("Failed to load data from localStorage", e);
     }
+    
+    const handleApiKeyRotation = (event: Event) => {
+        const customEvent = event as CustomEvent;
+        const provider = customEvent.detail.provider as AiProvider;
+        const providerName = provider === 'gemini' ? 'Gemini' : provider === 'openai' ? 'OpenAI' : 'ElevenLabs';
+        setNotification(`API key ${providerName} đã gặp lỗi và đã được tự động chuyển sang key tiếp theo.`);
+
+        // Also refresh local state to reflect the change
+        const latestApiKeys = localStorage.getItem('ai-api-keys');
+        if (latestApiKeys) {
+            setApiKeys(JSON.parse(latestApiKeys));
+        }
+    };
+    
+    window.addEventListener('apiKeyRotated', handleApiKeyRotation);
+    
+    const handleStorageChange = (e: StorageEvent) => {
+        if (e.key === 'ai-api-keys' && e.newValue) {
+            setApiKeys(JSON.parse(e.newValue));
+        }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+        window.removeEventListener('apiKeyRotated', handleApiKeyRotation);
+        window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
+
+  useEffect(() => {
+    if (notification) {
+        const timer = setTimeout(() => {
+            setNotification(null);
+        }, 6000); // 6 seconds
+        return () => clearTimeout(timer);
+    }
+  }, [notification]);
 
   useEffect(() => {
     localStorage.setItem('yt-script-theme', themeColor);
@@ -974,6 +1014,13 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-primary">
+      {notification && (
+            <div className="fixed top-5 right-5 bg-secondary border border-accent text-text-primary p-4 rounded-lg shadow-lg z-[100] flex items-center gap-4">
+                <CheckIcon className="w-6 h-6 text-green-400 flex-shrink-0" />
+                <p className="text-sm">{notification}</p>
+                <button onClick={() => setNotification(null)} className="text-text-secondary hover:text-text-primary text-lg font-bold">&times;</button>
+            </div>
+        )}
       <header className="bg-secondary/60 border-b border-border p-4 shadow-sm flex justify-between items-center sticky top-0 z-20 backdrop-blur-sm">
         <div className="flex-1"></div>
         <div className="flex-1 text-center">
@@ -989,13 +1036,15 @@ const App: React.FC = () => {
         </div>
         <div className="flex-1 flex justify-end items-center gap-4">
             <div className="relative" ref={themeSelectorRef}>
-                <button 
-                    onClick={() => setIsThemeSelectorOpen(prev => !prev)}
-                    className="p-2 rounded-full hover:bg-secondary transition-colors"
-                    aria-label="Chọn màu chủ đề"
-                >
-                    <PaletteIcon className="w-5 h-5 text-text-secondary"/>
-                </button>
+                <Tooltip text="Thay đổi màu sắc chủ đạo của ứng dụng">
+                    <button 
+                        onClick={() => setIsThemeSelectorOpen(prev => !prev)}
+                        className="p-2 rounded-full hover:bg-secondary transition-colors"
+                        aria-label="Chọn màu chủ đề"
+                    >
+                        <PaletteIcon className="w-5 h-5 text-text-secondary"/>
+                    </button>
+                </Tooltip>
                 {isThemeSelectorOpen && (
                     <div className="absolute top-full right-0 mt-2 bg-secondary border border-border rounded-lg shadow-2xl p-2 flex gap-2 z-10">
                         {THEMES.map(theme => (
@@ -1021,13 +1070,15 @@ const App: React.FC = () => {
                     </div>
                 )}
             </div>
-             <button 
-                onClick={() => setIsApiKeyModalOpen(true)}
-                className="px-4 py-1.5 text-sm font-semibold rounded-md hover:bg-secondary transition-colors border border-border text-text-secondary hover:text-text-primary"
-                aria-label="Cài đặt API Key"
-            >
-                API
-            </button>
+            <Tooltip text="Quản lý API keys cho Gemini, OpenAI, và ElevenLabs">
+                 <button 
+                    onClick={() => setIsApiKeyModalOpen(true)}
+                    className="px-4 py-1.5 text-sm font-semibold rounded-md hover:bg-secondary transition-colors border border-border text-text-secondary hover:text-text-primary"
+                    aria-label="Cài đặt API Key"
+                >
+                    API
+                </button>
+            </Tooltip>
         </div>
       </header>
 

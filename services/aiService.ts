@@ -4,6 +4,27 @@ import { GoogleGenAI, Type } from "@google/genai";
 import type { GenerationParams, VisualPrompt, AllVisualPromptsResult, ScriptPartSummary, StyleOptions, TopicSuggestionItem, AiProvider, ElevenlabsVoice, Expression, SummarizeConfig, SceneSummary, ScenarioType } from '../types';
 import { EXPRESSION_OPTIONS, STYLE_OPTIONS } from '../constants';
 
+// Helper function to detect if an error is related to API key failure
+const isKeyFailureError = (error: unknown, provider: AiProvider): boolean => {
+    if (!(error instanceof Error)) return false;
+
+    const lowerCaseMessage = error.message.toLowerCase();
+    
+    if (provider === 'gemini') {
+        return lowerCaseMessage.includes('api key not valid') || 
+               lowerCaseMessage.includes('resource_exhausted') || 
+               lowerCaseMessage.includes('429');
+    }
+    if (provider === 'openai') {
+        return lowerCaseMessage.includes('invalid_api_key') || 
+               lowerCaseMessage.includes('insufficient_quota');
+    }
+    if (provider === 'elevenlabs') {
+        return lowerCaseMessage.includes('unauthorized');
+    }
+    return false;
+};
+
 // Helper function to handle API errors and provide more specific messages
 const handleApiError = (error: unknown, context: string): Error => {
     console.error(`Lỗi trong lúc ${context}:`, error);
@@ -36,6 +57,9 @@ const handleApiError = (error: unknown, context: string): Error => {
                 }
                 if ((apiError.status === 'INVALID_ARGUMENT' && apiError.message.toLowerCase().includes('api key not valid')) || lowerCaseErrorMessage.includes('api_key_invalid')) {
                     return new Error('API Key Gemini không hợp lệ hoặc đã bị thu hồi. Vui lòng kiểm tra lại.');
+                }
+                if (apiError.message && apiError.message.includes('overloaded')) {
+                    return new Error('Lỗi từ Gemini: The model is overloaded. Please try again later.');
                 }
                 return new Error(`Lỗi từ Gemini: ${apiError.message || JSON.stringify(apiError)}`);
             }
@@ -141,7 +165,7 @@ export const validateApiKey = async (apiKey: string, provider: AiProvider): Prom
     }
 };
 
-const callApi = async (prompt: string, provider: AiProvider, model: string, jsonResponse = false): Promise<string> => {
+const callApi = async (prompt: string, provider: AiProvider, model: string, jsonResponse = false, retried = false): Promise<string> => {
     try {
         const apiKey = getApiKey(provider);
         if (provider === 'gemini') {
@@ -177,6 +201,23 @@ const callApi = async (prompt: string, provider: AiProvider, model: string, json
             return data.choices[0].message.content;
         }
     } catch (error) {
+        const keysJson = localStorage.getItem('ai-api-keys');
+        const hasMultipleKeys = keysJson ? (JSON.parse(keysJson)[provider]?.length > 1) : false;
+
+        if (!retried && hasMultipleKeys && isKeyFailureError(error, provider)) {
+            // Rotate key
+            const keys: Record<AiProvider, string[]> = keysJson ? JSON.parse(keysJson) : { gemini: [], openai: [], elevenlabs: [] };
+            const providerKeys = keys[provider];
+            const failedKey = providerKeys.shift(); // remove first element
+            if (failedKey) providerKeys.push(failedKey); // add to the end
+            localStorage.setItem('ai-api-keys', JSON.stringify(keys));
+            
+            // Dispatch event
+            window.dispatchEvent(new CustomEvent('apiKeyRotated', { detail: { provider } }));
+            
+            // Retry
+            return callApi(prompt, provider, model, jsonResponse, true);
+        }
         // This re-throws the error to be caught by the specific function's catch block
         throw error;
     }
@@ -1039,7 +1080,7 @@ export const getElevenlabsVoices = async (): Promise<ElevenlabsVoice[]> => {
     }
 }
 
-export const generateElevenlabsTts = async (text: string, voiceId: string): Promise<string> => {
+export const generateElevenlabsTts = async (text: string, voiceId: string, retried = false): Promise<string> => {
     if (!text || !voiceId) {
         throw new Error("Cần có văn bản và ID giọng nói để tạo âm thanh.");
     }
@@ -1071,6 +1112,20 @@ export const generateElevenlabsTts = async (text: string, voiceId: string): Prom
         const audioUrl = URL.createObjectURL(audioBlob);
         return audioUrl;
     } catch (error) {
+        const keysJson = localStorage.getItem('ai-api-keys');
+        const hasMultipleKeys = keysJson ? (JSON.parse(keysJson)['elevenlabs']?.length > 1) : false;
+
+        if (!retried && hasMultipleKeys && isKeyFailureError(error, 'elevenlabs')) {
+            const keys: Record<AiProvider, string[]> = keysJson ? JSON.parse(keysJson) : { gemini: [], openai: [], elevenlabs: [] };
+            const providerKeys = keys['elevenlabs'];
+            const failedKey = providerKeys.shift();
+            if (failedKey) providerKeys.push(failedKey);
+            localStorage.setItem('ai-api-keys', JSON.stringify(keys));
+            
+            window.dispatchEvent(new CustomEvent('apiKeyRotated', { detail: { provider: 'elevenlabs' } }));
+            
+            return generateElevenlabsTts(text, voiceId, true); // Retry once
+        }
         throw handleApiError(error, 'tạo âm thanh từ ElevenLabs');
     }
 }

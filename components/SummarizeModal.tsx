@@ -284,7 +284,7 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
                             <h3 className="text-lg font-bold text-accent mb-4 border-b border-border pb-2">{part.partTitle}</h3>
                             <div className="space-y-4">
                                 {part.scenes.map(scene => {
-                                    const promptText = activeTab === 'image' ? scene.imagePrompt : scene.videoPrompt;
+                                    const promptText = activeTab === 'video' ? scene.videoPrompt : scene.imagePrompt;
                                     const isVideoPlaceholder = activeTab === 'video' && (scenarioType === 'finance' || scenarioType === 'ww2') && promptText.startsWith('Prompt chưa được tạo.');
                                     const isVideoError = activeTab === 'video' && promptText.startsWith('LỖI:');
                                     const currentKey = `${partIndex}-${scene.sceneNumber}`;
@@ -314,8 +314,18 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
                                                         </button>
                                                     </div>
                                                 ) : isVideoError ? (
-                                                     <div className="w-full bg-red-900/50 border border-red-500/50 rounded-md p-3 text-red-300 text-sm">
-                                                        {promptText}
+                                                     <div className="flex items-center gap-2">
+                                                        <div className="flex-grow bg-red-900/50 border border-red-500/50 rounded-md p-3 text-red-300 text-sm">
+                                                            {promptText}
+                                                        </div>
+                                                        <button
+                                                            onClick={() => handleGenerateVideoPromptClick(scene, partIndex)}
+                                                            disabled={isGeneratingThisPrompt || isBulkGenerating}
+                                                            className="flex-shrink-0 bg-secondary hover:bg-border text-text-primary font-semibold py-2 px-3 rounded-lg transition text-sm disabled:opacity-50"
+                                                            aria-label="Thử lại tạo prompt"
+                                                        >
+                                                            Thử lại
+                                                        </button>
                                                      </div>
                                                 ) : (
                                                     <>
@@ -369,7 +379,7 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
                         </button>
                     ) : (
                          <>
-                            {needsBulkGeneration && (
+                            {needsBulkGeneration && activeTab === 'video' && (
                                 <button
                                     onClick={handleGenerateAllVideoPrompts}
                                     disabled={isBulkGenerating || !!generatingVideoPromptKey || isLoading}
