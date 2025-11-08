@@ -793,7 +793,7 @@ export const summarizeScriptForScenes = async (
     // General scenario logic
     const quantityInstruction = typeof numberOfPrompts === 'number'
         ? `You MUST generate exactly ${numberOfPrompts} total scenes for the entire script.`
-        : `Each scene must be designed to be approximately 8 seconds long. You decide the total number of scenes based on the script's length.`;
+        : `**High-Density Prompt Generation:** Your goal is to create a high density of visual prompts to keep the video dynamic. You MUST break down the script into very small, granular segments. Each segment should correspond to roughly 4 to 6 seconds of narration. A good rule of thumb is that the 'summary' for each scene should be about 10-15 words long. You decide the total number of scenes based on this high-density rule, ensuring full coverage of the script. Do not create long scenes.`;
 
     const narrationInstruction = includeNarration
         ? `The final video WILL include the narrator's voice. The prompts should complement the spoken words, illustrating what is being said.`
