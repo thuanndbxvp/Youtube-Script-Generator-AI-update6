@@ -1,8 +1,8 @@
 
+
 import { GoogleGenAI, Type } from "@google/genai";
-import type { GenerationParams, VisualPrompt, AllVisualPromptsResult, ScriptPartSummary, StyleOptions, TopicSuggestionItem, AiProvider, ElevenlabsVoice, Expression } from '../types';
+import type { GenerationParams, VisualPrompt, AllVisualPromptsResult, ScriptPartSummary, StyleOptions, TopicSuggestionItem, AiProvider, ElevenlabsVoice, Expression, SummarizeConfig } from '../types';
 import { EXPRESSION_OPTIONS, STYLE_OPTIONS } from '../constants';
-import { SummarizeConfig } from '../components/SummarizeModal';
 
 // Helper function to handle API errors and provide more specific messages
 const handleApiError = (error: unknown, context: string): Error => {
@@ -605,19 +605,35 @@ export const summarizeScriptForScenes = async (
     model: string, 
     config: SummarizeConfig
 ): Promise<ScriptPartSummary[]> => {
-    const { numberOfPrompts, includeNarration } = config;
+    const { numberOfPrompts, includeNarration, scenarioType, referenceImage } = config;
 
     const quantityInstruction = typeof numberOfPrompts === 'number'
         ? `You MUST generate exactly ${numberOfPrompts} total scenes for the entire script.`
         : `Each scene must be designed to be approximately 8 seconds long. You decide the total number of scenes based on the script's length.`;
 
     const narrationInstruction = includeNarration
-        ? `The final video WILL include the narrator's voice. The 'visualPrompt' should complement the spoken words, illustrating what is being said.`
+        ? `The final video WILL include the narrator's voice. The prompts should complement the spoken words, illustrating what is being said.`
         : `The final video will NOT have narration, only background music and sound effects. The storytelling must be purely visual.
-- **CRITICAL RULE:** The 'visualPrompt' MUST NOT describe any person speaking, narrating, or lipsyncing. The generated video should be completely free of human speech.
-- **Visual Storytelling First:** The 'visualPrompt' must be extremely descriptive, focusing on powerful imagery, actions, symbolism, and atmosphere to convey the story and information from the script's summary.
+- **CRITICAL RULE:** The prompts MUST NOT describe any person speaking, narrating, or lipsyncing. The generated video should be completely free of human speech.
+- **Visual Storytelling First:** The prompts must be extremely descriptive, focusing on powerful imagery, actions, symbolism, and atmosphere to convey the story and information from the script's summary.
 - **Minimize On-Screen Text:** AVOID suggesting on-screen text. Only include suggestions for on-screen text (e.g., 'On-screen text appears: ...') as a last resort, if a key piece of information is absolutely impossible to convey visually. The default should be NO on-screen text.`;
     
+    let styleInstruction = '';
+    if (referenceImage) {
+        styleInstruction = `**CRITICAL STYLE INSTRUCTION:** The user has provided a reference image. You MUST analyze its visual style (color palette, lighting, composition, mood, genre, era). ALL generated prompts ('imagePrompt' and 'videoPrompt') MUST strictly adhere to and replicate this visual style to ensure consistency. This is your highest priority.`;
+    } else {
+        switch (scenarioType) {
+            case 'ww2':
+                styleInstruction = `**CRUCIAL STYLE INSTRUCTION:** The user selected the 'WW2' scenario. Generate all prompts with a historical, documentary, and cinematic feel. Use styles like 'black and white photography', 'archival footage', 'sepia tone', 'dramatic lighting', 'World War II era'.`;
+                break;
+            case 'finance':
+                styleInstruction = `**CRUCIAL STYLE INSTRUCTION:** The user selected the 'Finance' scenario. Generate all prompts with a modern, professional, clean, and corporate aesthetic. Use styles like 'data visualizations', 'sleek animations', 'abstract financial concepts', 'minimalist design', 'blue and white color palette'.`;
+                break;
+            default:
+                styleInstruction = ''; // General case, no specific style imposed.
+        }
+    }
+
     const prompt = `
         You are an expert video production assistant. Your task is to break down the following YouTube script into a series of detailed scenes.
         The script is organized into main parts using markdown headings (## or ###).
@@ -628,22 +644,81 @@ export const summarizeScriptForScenes = async (
         """
 
         **CRITICAL INSTRUCTIONS:**
-        1.  **Source Material:** Your primary source for generating the 'summary' and 'visualPrompt' MUST be the "Lời thoại" (Narration) and "Gợi ý hình ảnh/cử chỉ" (Visual Cues) provided in the script for that section. Faithfully translate the script's intent into visual scenes. Do not invent new concepts.
+        1.  **Source Material:** Your primary source for generating the 'summary', 'imagePrompt', and 'videoPrompt' MUST be the "Lời thoại" (Narration) and "Gợi ý hình ảnh/cử chỉ" (Visual Cues) provided in the script for that section. Faithfully translate the script's intent into visual scenes. Do not invent new concepts.
         2.  **Scene Quantity:** ${quantityInstruction}
         3.  **Narration Context:** ${narrationInstruction}
-        4.  **Output Structure:**
+        4.  **Style Context:** ${styleInstruction}
+        5.  **Output Structure:**
             -   For each main part identified by a heading, create a list of scenes.
             -   For each scene, you MUST provide:
-                - A short 'summary' in Vietnamese, describing the key action or information for that segment. This is based on the script's content.
-                - A detailed 'visualPrompt' in English for an AI video generator (like Veo). This prompt must visually represent the summary and follow the narration context above. It must describe setting, characters, action, mood, and camera style.
-        5.  **JSON Format:** The final output MUST be a JSON array. Each object in the array represents a main part of the script and must have a 'partTitle' (the heading text) and a 'scenes' array. Each object in the 'scenes' array must have 'sceneNumber' (starting from 1 for the whole script), 'summary', and 'visualPrompt'.
-        6.  The output must be ONLY the JSON array, nothing else.
+                - A short 'summary' in Vietnamese, describing the key action or information for that segment.
+                - An 'imagePrompt' in English: a concise prompt for a static, high-quality photograph or digital art.
+                - A 'videoPrompt' in English: a dynamic prompt for a short video clip, describing action and camera movement.
+        6.  **JSON Format:** The final output MUST be a valid JSON array. Each object in the array represents a main part of the script and must have a 'partTitle' (the heading text) and a 'scenes' array. Each object in the 'scenes' array must have 'sceneNumber' (starting from 1 for the whole script), 'summary', 'imagePrompt', and 'videoPrompt'.
+        7.  The output must be ONLY the JSON array, nothing else.
 
         Please generate the JSON array now.
     `;
 
     try {
-        const responseText = await callApi(prompt, provider, model, true);
+        const apiKey = getApiKey(provider);
+        let responseText: string;
+
+        if (provider === 'gemini') {
+            const ai = new GoogleGenAI({ apiKey });
+            let modelToUse = model;
+            let contents;
+            if (referenceImage) {
+                 if (model !== 'gemini-2.5-pro') modelToUse = 'gemini-2.5-flash';
+                const base64Data = referenceImage.split(',')[1];
+                const mimeType = referenceImage.match(/data:(.*);base64,/)?.[1] || 'image/jpeg';
+                
+                const imagePart = { inlineData: { mimeType, data: base64Data } };
+                const textPart = { text: prompt };
+                contents = { parts: [textPart, imagePart] };
+            } else {
+                contents = prompt;
+            }
+            const response = await ai.models.generateContent({
+                model: modelToUse,
+                contents: contents,
+                config: { responseMimeType: "application/json" }
+            });
+            responseText = response.text;
+        } else { // openai
+            let messages: any[];
+            if (referenceImage) {
+                messages = [{
+                    role: 'user',
+                    content: [
+                        { type: 'text', text: prompt },
+                        { type: 'image_url', image_url: { url: referenceImage, detail: "high" } }
+                    ]
+                }];
+            } else {
+                messages = [{ role: 'system', content: prompt }];
+            }
+            const body = {
+                model: model, // should be gpt-4o or similar vision-capable model
+                messages: messages,
+                max_tokens: 4096,
+                response_format: { type: 'json_object' }
+            };
+            const response = await fetch('https://api.openai.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify(body)
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(JSON.stringify(data));
+            }
+            responseText = data.choices[0].message.content;
+        }
+
         const jsonResponse = JSON.parse(responseText);
         if (Array.isArray(jsonResponse)) {
              // Re-number scenes sequentially from 1 across all parts
@@ -663,6 +738,7 @@ export const summarizeScriptForScenes = async (
         throw handleApiError(error, 'tóm tắt kịch bản ra các cảnh');
     }
 };
+
 
 export const suggestStyleOptions = async (title: string, outlineContent: string, provider: AiProvider, model: string): Promise<StyleOptions> => {
     const expressionValues = EXPRESSION_OPTIONS.map(o => o.value);

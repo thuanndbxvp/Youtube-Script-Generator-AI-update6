@@ -4,6 +4,7 @@ export type Style = 'Narrative' | 'Descriptive' | 'Expository' | 'Persuasive' | 
 export type ScriptType = 'Video' | 'Podcast';
 export type NumberOfSpeakers = 'Auto' | '2' | '3' | '4' | '5';
 export type AiProvider = 'gemini' | 'openai' | 'elevenlabs';
+export type ScenarioType = 'general' | 'ww2' | 'finance';
 
 // Options interfaces
 export interface StyleOptions {
@@ -92,7 +93,8 @@ export interface ChatMessage {
 export interface SceneSummary {
   sceneNumber: number;
   summary: string;
-  visualPrompt: string;
+  imagePrompt: string;
+  videoPrompt: string;
 }
 
 export interface ScriptPartSummary {
@@ -103,4 +105,11 @@ export interface ScriptPartSummary {
 export interface WordCountStats {
   sections: { title: string; count: number }[];
   total: number;
+}
+
+export interface SummarizeConfig {
+  numberOfPrompts: 'auto' | number;
+  includeNarration: boolean;
+  scenarioType: ScenarioType;
+  referenceImage?: string | null;
 }

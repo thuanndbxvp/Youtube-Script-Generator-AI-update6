@@ -1,16 +1,13 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { ClipboardIcon } from './icons/ClipboardIcon';
 import { DownloadIcon } from './icons/DownloadIcon';
-import type { ScriptPartSummary, ScriptType } from '../types';
+import type { ScriptPartSummary, ScriptType, ScenarioType, SummarizeConfig } from '../types';
+import { ImageUploader } from './ImageUploader';
 
 // Make TypeScript aware of the global XLSX object from the CDN
 declare const XLSX: any;
-
-export interface SummarizeConfig {
-  numberOfPrompts: 'auto' | number;
-  includeNarration: boolean;
-}
 
 interface SummarizeModalProps {
   isOpen: boolean;
@@ -72,12 +69,18 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
     const [isAutoPrompts, setIsAutoPrompts] = useState(true);
     const [promptCountInput, setPromptCountInput] = useState('10');
     const [includeNarration, setIncludeNarration] = useState(false);
+    const [scenarioType, setScenarioType] = useState<ScenarioType>('general');
+    const [referenceImage, setReferenceImage] = useState<string | null>(null);
+    const [activeTab, setActiveTab] = useState<'image' | 'video'>('image');
+
 
     useEffect(() => {
         if (isOpen && !summary && !isLoading && !error) {
             setIsAutoPrompts(true);
             setPromptCountInput('10');
             setIncludeNarration(false);
+            setScenarioType('general');
+            setReferenceImage(null);
         }
     }, [isOpen, summary, isLoading, error]);
 
@@ -85,9 +88,11 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
     if (!isOpen) return null;
 
     const handleGenerateClick = () => {
-        const config = {
+        const config: SummarizeConfig = {
             numberOfPrompts: isAutoPrompts ? 'auto' : parseInt(promptCountInput, 10),
             includeNarration,
+            scenarioType,
+            referenceImage,
         };
         onGenerate(config);
     };
@@ -95,27 +100,28 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
     const handleDownloadExcel = () => {
         if (!summary || typeof XLSX === 'undefined') return;
 
-        const header = ['STT', 'Prompt', 'Trạng thái', 'Dịch nghĩa prompt'];
+        const header = ['STT', 'Tóm tắt Cảnh', 'Prompt Ảnh', 'Prompt Video', 'Trạng thái'];
         const data: (string | number)[][] = [];
         let sceneCounter = 1;
 
         summary.forEach(part => {
             part.scenes.forEach(scene => {
                 data.push([
-                    sceneCounter++,      // STT
-                    scene.visualPrompt,  // Prompt
-                    '',                  // Trạng thái
-                    scene.summary        // Using summary as the Vietnamese meaning
+                    sceneCounter++,
+                    scene.summary,
+                    scene.imagePrompt,
+                    scene.videoPrompt,
+                    '' // Status column
                 ]);
             });
         });
 
         const worksheet = XLSX.utils.aoa_to_sheet([header, ...data]);
         const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'Prompts Tóm Tắt');
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Prompts');
         
         const sanitizedTitle = title.replace(/[^a-z0-9_-\s]/gi, '').trim().replace(/\s+/g, '_');
-        const fileName = `Prompt_${sanitizedTitle || 'untitled'}.xlsx`;
+        const fileName = `Prompts_${sanitizedTitle || 'untitled'}.xlsx`;
         
         XLSX.writeFile(workbook, fileName);
     };
@@ -130,6 +136,27 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
         if (!summary) {
             return (
                 <div className="space-y-6">
+                    <div>
+                        <label className="block text-sm font-semibold text-text-primary mb-2">Loại kịch bản</label>
+                        <select
+                            value={scenarioType}
+                            onChange={(e) => setScenarioType(e.target.value as ScenarioType)}
+                            className="w-full bg-primary border border-border rounded-md p-2 text-text-primary focus:ring-2 focus:ring-accent focus:border-accent transition"
+                        >
+                            <option value="general">1-Kịch bản chung</option>
+                            <option value="ww2">2-Kịch bản WW2</option>
+                            <option value="finance">3-Kịch bản Finance</option>
+                        </select>
+                    </div>
+
+                    {(scenarioType === 'ww2' || scenarioType === 'finance') && (
+                        <ImageUploader
+                            onImageSelect={setReferenceImage}
+                            onImageRemove={() => setReferenceImage(null)}
+                            imagePreviewUrl={referenceImage}
+                        />
+                    )}
+
                     <div>
                         <label className="block text-sm font-semibold text-text-primary mb-2">Số lượng prompt</label>
                         <div className="flex items-center space-x-4">
@@ -171,29 +198,54 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
         }
 
         return (
-            <div className="space-y-8">
-                {summary.map((part, index) => (
-                    <div key={index} className="bg-primary p-4 rounded-lg border border-border">
-                        <h3 className="text-lg font-bold text-accent mb-4 border-b border-border pb-2">{part.partTitle}</h3>
-                        <div className="space-y-4">
-                            {part.scenes.map(scene => (
-                                <div key={scene.sceneNumber} className="border-t border-border/50 pt-3">
-                                    <p className="text-sm text-text-secondary"><strong className="text-text-primary font-semibold">Cảnh {scene.sceneNumber}:</strong> {scene.summary}</p>
-                                    <div className="mt-2">
-                                        <label className="block text-xs font-semibold text-text-secondary mb-1">Prompt Video (Tiếng Anh)</label>
-                                        <textarea
-                                            readOnly
-                                            rows={3}
-                                            className="w-full bg-secondary border border-border rounded-md p-2 text-text-primary resize-y text-sm font-mono"
-                                            value={scene.visualPrompt}
-                                        />
-                                        <CopyButton text={scene.visualPrompt} />
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+            <div>
+                <div className="mb-4 border-b border-border">
+                     <div className="flex bg-primary rounded-t-lg p-1 max-w-sm">
+                        <button
+                            onClick={() => setActiveTab('image')}
+                            className={`w-full py-2 text-sm font-semibold rounded-md transition-colors ${
+                                activeTab === 'image' ? 'bg-accent text-white shadow-sm' : 'text-text-primary hover:bg-secondary'
+                            }`}
+                        >
+                            Prompts Ảnh
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('video')}
+                            className={`w-full py-2 text-sm font-semibold rounded-md transition-colors ${
+                                activeTab === 'video' ? 'bg-accent text-white shadow-sm' : 'text-text-primary hover:bg-secondary'
+                            }`}
+                        >
+                            Prompts Video
+                        </button>
                     </div>
-                ))}
+                </div>
+                <div className="space-y-8">
+                    {summary.map((part, index) => (
+                        <div key={index} className="bg-primary p-4 rounded-lg border border-border">
+                            <h3 className="text-lg font-bold text-accent mb-4 border-b border-border pb-2">{part.partTitle}</h3>
+                            <div className="space-y-4">
+                                {part.scenes.map(scene => {
+                                    const promptText = activeTab === 'image' ? scene.imagePrompt : scene.videoPrompt;
+                                    return (
+                                        <div key={scene.sceneNumber} className="border-t border-border/50 pt-3">
+                                            <p className="text-sm text-text-secondary"><strong className="text-text-primary font-semibold">Cảnh {scene.sceneNumber}:</strong> {scene.summary}</p>
+                                            <div className="mt-2">
+                                                <label className="block text-xs font-semibold text-text-secondary mb-1">Prompt {activeTab === 'image' ? 'Ảnh' : 'Video'} (Tiếng Anh)</label>
+                                                <textarea
+                                                    readOnly
+                                                    rows={3}
+                                                    className="w-full bg-secondary border border-border rounded-md p-2 text-text-primary resize-y text-sm font-mono"
+                                                    value={promptText}
+                                                />
+                                                <CopyButton text={promptText} />
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    ))}
+                </div>
             </div>
         );
     };
