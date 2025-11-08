@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import type { ElevenlabsVoice } from '../types';
 import { DownloadIcon } from './icons/DownloadIcon';
@@ -114,7 +115,7 @@ export const TtsModal: React.FC<TtsModalProps> = ({ isOpen, onClose, dialogue, v
                 [partTitle]: { isLoading: false, audioUrl, error: null }
             }));
         } catch (caughtError) {
-            // Fix: The 'caughtError' variable is of type 'unknown'. Type guard `instanceof Error` is used to safely access the `message` property.
+            // FIX: The 'caughtError' variable is of type 'unknown'. A type guard is used to safely access the `message` property.
             setGenerationState(prev => ({
                 ...prev,
                 [partTitle]: { isLoading: false, audioUrl: null, error: caughtError instanceof Error ? caughtError.message : 'Lỗi không xác định' }

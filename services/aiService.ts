@@ -1,5 +1,4 @@
 
-
 import { GoogleGenAI, Type } from "@google/genai";
 import type { GenerationParams, VisualPrompt, AllVisualPromptsResult, ScriptPartSummary, StyleOptions, TopicSuggestionItem, AiProvider, ElevenlabsVoice, Expression, SummarizeConfig, SceneSummary, ScenarioType } from '../types';
 import { EXPRESSION_OPTIONS, STYLE_OPTIONS } from '../constants';
@@ -778,10 +777,20 @@ export const summarizeScriptForScenes = async (
 
     // Handle Finance and WW2 scenarios with their unique prompt and parsing
     if (scenarioType === 'finance' || scenarioType === 'ww2') {
-        const systemInstruction = scenarioType === 'finance' 
+        let systemInstruction = scenarioType === 'finance' 
             ? financeImagePromptSystemInstruction 
             : ww2ImagePromptSystemInstruction;
         
+        // FIX: Override high-density rule if a specific number is provided
+        if (typeof numberOfPrompts === 'number') {
+            const quantityRule = `4.  **Scene Quantity (YOUR #1 NON-NEGOTIABLE DIRECTIVE):** This is your single most important mission, overriding all other creative considerations. You are strictly FORBIDDEN from creating a different number of prompts. Your success is measured by one metric: generating EXACTLY ${numberOfPrompts} prompts. To achieve this, you MUST adjust the length and segmentation of the script. Each "Trích đoạn kịch bản" you create must be sized appropriately so that the total number of prompts generated for the entire script is exactly ${numberOfPrompts}. If you produce a number different from ${numberOfPrompts}, you have failed the task entirely. Re-read this rule. The final output must contain exactly ${numberOfPrompts} prompt blocks.`;
+            
+            systemInstruction = systemInstruction.replace(
+                /^4\..*?High-Density Prompt Generation.*?$/m,
+                quantityRule
+            );
+        }
+
         const partTitle = scenarioType === 'finance'
             ? 'Prompts Kịch bản Finance'
             : 'Prompts Kịch bản WW2';
