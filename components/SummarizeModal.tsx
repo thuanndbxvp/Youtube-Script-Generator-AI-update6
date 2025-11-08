@@ -178,7 +178,7 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
                                 <span className="text-text-primary">Tự động</span>
                             </label>
                         </div>
-                        <p className="text-xs text-text-secondary mt-1">AI sẽ tạo số lượng cảnh phù hợp (~8s mỗi cảnh) nếu bạn chọn "Tự động".</p>
+                        <p className="text-xs text-text-secondary mt-1">AI sẽ tạo số lượng cảnh phù hợp (~4-6s mỗi cảnh) nếu bạn chọn "Tự động".</p>
                     </div>
                     <div>
                         <label className="block text-sm font-semibold text-text-primary mb-2">Tùy chọn lời thoại</label>
@@ -226,7 +226,7 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
                             <div className="space-y-4">
                                 {part.scenes.map(scene => {
                                     const promptText = activeTab === 'image' ? scene.imagePrompt : scene.videoPrompt;
-                                    const isPlaceholder = (scenarioType === 'finance' || scenarioType === 'ww2') && activeTab === 'video';
+                                    const isPlaceholder = promptText === 'Chức năng đang phát triển';
                                     const summaryLabel = (scenarioType === 'finance' || scenarioType === 'ww2') ? 'Trích đoạn kịch bản' : `Cảnh ${scene.sceneNumber}`;
 
                                     return (

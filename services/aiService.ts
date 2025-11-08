@@ -599,38 +599,58 @@ export const generateAllVisualPrompts = async (script: string, provider: AiProvi
     }
 };
 
-const financeImagePromptSystemInstruction = `You are an expert cinematic image prompt generator for a financial history documentary. You will be given a script and optionally a reference image. Your task is to analyze the materials and generate, in bulk and in a single run, all prompts needed to cover the entire script.
+const financeCombinedPromptSystemInstruction = `You are an expert cinematic prompt generator for a financial history documentary. You will be given a script and optionally a reference image. Your task is to analyze the materials and generate, in bulk and in a single run, all prompts needed to cover the entire script. For each excerpt of the script, you must generate TWO distinct prompts: one for a still image, and one for a short video clip.
 
-**Mandatory Rules:**
-1.  **Prefix:** Every single image prompt MUST begin with the exact phrase: \`cinematic financial history documentary photo of …\`
-2.  **Length:** Each prompt must be at least 400 characters long.
-3.  **Language:** All prompts MUST be written in English (U.S.).
-4.  **Thematic Focus:** Your imagery must connect past financial events to modern anxieties about inflation, recession, and market bubbles (e.g., market crashes, manias, bank runs, policy shocks). Frame each prompt as a realistic documentary still.
-5.  **Visual Style:**
+**Mandatory Rules for BOTH prompts:**
+1.  **Language:** All prompts MUST be written in English (U.S.).
+2.  **Thematic Focus:** Your imagery must connect past financial events to modern anxieties about inflation, recession, and market bubbles (e.g., market crashes, manias, bank runs, policy shocks). Frame each prompt as a realistic documentary still.
+3.  **Visual Style:**
     *   **Prefer:** Stock exchanges, trading floors, ticker boards, central banks, long bank queues, vintage newspapers with crisis headlines, charts, moody city skylines, stressed small businesses, thoughtful faces lit by monitors.
     *   **Avoid:** Gore, explicit violence, riots, modern brand logos, partisan propaganda. Keep institutions generic.
     *   **Reference Image:** If a reference image is provided, you MUST analyze its visual style (color palette, lighting, composition, mood, realism) and ALL generated prompts must strictly adhere to and replicate this visual style for consistency. This is your highest priority.
-6.  **Coverage:** Generate prompts for all major beats/scenes in the script. Do not stop until the entire script is covered. Avoid duplication and prioritize specificity.
+4.  **Coverage:** Generate prompts for all major beats/scenes in the script. Do not stop until the entire script is covered. Avoid duplication and prioritize specificity.
+
+**Specific Rules for IMAGE Prompts:**
+1.  **Prefix:** Every single image prompt MUST begin with the exact phrase: \`cinematic financial history documentary photo of …\`
+2.  **Length:** Each image prompt must be at least 400 characters long.
+3.  **Content:** Describe a static, powerful, photographic moment that captures the essence of the script excerpt.
+
+**Specific Rules for VIDEO Prompts:**
+1.  **Prefix:** Every single video prompt MUST begin with the exact phrase: \`cinematic financial history documentary video shot of …\`
+2.  **Length & Detail:** Each video prompt must be at least 400 characters long and include comprehensive details for motion.
+3.  **Image-to-Video Motion Rules (Integrate into prompt):**
+    *   **Human subjects:** Describe subtle movements: slight head tilts, natural breathing, soft hand gestures, nuanced micro-expressions. Avoid stiffness.
+    *   **Environment:** Describe gentle ambient motion: gentle sway of papers, ticker flicker, soft reflections, drifting smoke/dust.
+    *   **Camera:** Describe a single, slow, fluid camera move: slow pan (L/R), gentle push-in or pull-out, subtle orbit.
+    *   **Technical Specs:** You MUST explicitly state the following in the prompt: \`duration 5–10s, 16:9 aspect ratio, 1080p\`.
+    *   **Style Notes:** You MUST explicitly state the following: \`preserve original grade, subtle grain/archival texture, no logos, no gore, no partisan symbols\`.
+4.  **Example Structure:** "cinematic financial history documentary video shot of ... [main description] ... with a slow pan from left to right, revealing the anxious faces. A subtle ticker flicker is visible in the background. The man in the foreground exhibits natural breathing motions. The shot should have a moody, tungsten lighting with subtle grain, duration 5–10s, 16:9 aspect ratio, 1080p, preserve original grade, no logos."
 
 **Output Format (MANDATORY):**
 You MUST follow this exact structure for each generated item, using "---" as a separator. Do NOT include any other text, explanations, or conversational filler.
 
 ---
-Prompt 1 (EN):
-"cinematic financial history documentary photo of ... [your generated prompt, ≥400 characters, following all rules]."
+Image Prompt 1 (EN):
+"cinematic financial history documentary photo of ... [your generated image prompt, ≥400 characters, following all rules]."
+
+Video Prompt 1 (EN):
+"cinematic financial history documentary video shot of ... [your generated video prompt, ≥400 characters, following all rules]."
 
 Trích đoạn kịch bản:
 "[Copy verbatim the exact lines from the provided script that correspond to this image. Do not translate, paraphrase, or invent text. Keep the excerpt in its original language.]"
 ---
-Prompt 2 (EN):
-"cinematic financial history documentary photo of ... [your next generated prompt]."
+Image Prompt 2 (EN):
+"..."
+
+Video Prompt 2 (EN):
+"..."
 
 Trích đoạn kịch bản:
-"[The next corresponding verbatim script excerpt.]"
+"..."
 ---
 ...and so on for the entire script.
 
-**Alignment Rule:** All factual details (names, dates, places, numbers) in the prompt MUST be consistent with the quoted script excerpt below it.
+**Alignment Rule:** All factual details (names, dates, places, numbers) in the prompts MUST be consistent with the quoted script excerpt below it.
 
 Now, analyze the script provided by the user and generate the complete list of prompts.
 `;
@@ -674,23 +694,37 @@ Now, analyze the script provided by the user and generate the complete list of p
 
 function parseSpecialScenarioPrompts(responseText: string, partTitle: string): ScriptPartSummary[] {
     const scenes: SceneSummary[] = [];
+    // Split by '---' which separates each scene block
     const blocks = responseText.split('---').filter(b => b.trim());
 
     blocks.forEach((block, index) => {
-        const promptMatch = block.match(/Prompt\s*\d+\s*\(EN\):\s*([\s\S]*?)Trích đoạn kịch bản:/);
         const excerptMatch = block.match(/Trích đoạn kịch bản:\s*([\s\S]*)/);
+        
+        // If there's no script excerpt, we can't process the block.
+        if (!excerptMatch) return;
 
-        if (promptMatch && excerptMatch) {
-            const imagePrompt = promptMatch[1].trim().replace(/^"|"$/g, ''); // Remove surrounding quotes
-            const summary = excerptMatch[1].trim(); // This is the script excerpt
+        const summary = excerptMatch[1].trim();
 
-            scenes.push({
-                sceneNumber: index + 1,
-                summary: summary,
-                imagePrompt: imagePrompt,
-                videoPrompt: 'Chức năng đang phát triển',
-            });
+        // Try to find an image prompt. It can be labeled "Image Prompt" or just "Prompt".
+        let imageMatch = block.match(/Image\s+Prompt\s*\d*\s*\(EN\):\s*([\s\S]*?)(?=Video\s+Prompt|Trích đoạn kịch bản:|$)/);
+        if (!imageMatch) {
+            // Fallback for formats like WW2's "Prompt 1 (EN):"
+            imageMatch = block.match(/Prompt\s*\d*\s*\(EN\):\s*([\s\S]*?)(?=Trích đoạn kịch bản:|$)/);
         }
+        
+        // Try to find a video prompt. It must be labeled "Video Prompt".
+        const videoMatch = block.match(/Video\s+Prompt\s*\d*\s*\(EN\):\s*([\s\S]*?)(?=Trích đoạn kịch bản:|$)/);
+
+        // Process the matches
+        const imagePrompt = imageMatch ? imageMatch[1].trim().replace(/^"|"$/g, '') : 'Lỗi phân tích prompt ảnh.';
+        const videoPrompt = videoMatch ? videoMatch[1].trim().replace(/^"|"$/g, '') : 'Chức năng đang phát triển';
+
+        scenes.push({
+            sceneNumber: index + 1,
+            summary: summary,
+            imagePrompt: imagePrompt,
+            videoPrompt: videoPrompt,
+        });
     });
 
     if (scenes.length === 0 && responseText.trim()) {
@@ -724,7 +758,7 @@ export const summarizeScriptForScenes = async (
     // Handle Finance and WW2 scenarios with their unique prompt and parsing
     if (scenarioType === 'finance' || scenarioType === 'ww2') {
         const systemInstruction = scenarioType === 'finance' 
-            ? financeImagePromptSystemInstruction 
+            ? financeCombinedPromptSystemInstruction 
             : ww2ImagePromptSystemInstruction;
         
         const partTitle = scenarioType === 'finance'
