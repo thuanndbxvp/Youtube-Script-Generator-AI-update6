@@ -227,7 +227,7 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
                                 {part.scenes.map(scene => {
                                     const promptText = activeTab === 'image' ? scene.imagePrompt : scene.videoPrompt;
                                     const isPlaceholder = (scenarioType === 'finance' || scenarioType === 'ww2') && activeTab === 'video';
-                                    const summaryLabel = scenarioType === 'finance' ? 'Trích đoạn kịch bản' : `Cảnh ${scene.sceneNumber}`;
+                                    const summaryLabel = (scenarioType === 'finance' || scenarioType === 'ww2') ? 'Trích đoạn kịch bản' : `Cảnh ${scene.sceneNumber}`;
 
                                     return (
                                         <div key={scene.sceneNumber} className="border-t border-border/50 pt-3">

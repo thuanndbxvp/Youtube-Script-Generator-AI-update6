@@ -1,7 +1,7 @@
 
 
 import { GoogleGenAI, Type } from "@google/genai";
-import type { GenerationParams, VisualPrompt, AllVisualPromptsResult, ScriptPartSummary, StyleOptions, TopicSuggestionItem, AiProvider, ElevenlabsVoice, Expression, SummarizeConfig, SceneSummary } from '../types';
+import type { GenerationParams, VisualPrompt, AllVisualPromptsResult, ScriptPartSummary, StyleOptions, TopicSuggestionItem, AiProvider, ElevenlabsVoice, Expression, SummarizeConfig, SceneSummary, ScenarioType } from '../types';
 import { EXPRESSION_OPTIONS, STYLE_OPTIONS } from '../constants';
 
 // Helper function to handle API errors and provide more specific messages
@@ -635,7 +635,44 @@ Trích đoạn kịch bản:
 Now, analyze the script provided by the user and generate the complete list of prompts.
 `;
 
-function parseFinancePrompts(responseText: string): ScriptPartSummary[] {
+const ww2ImagePromptSystemInstruction = `You are an expert cinematic image prompt generator for a World War II documentary. You will be given a script and optionally a reference image. Your task is to analyze the materials and generate, in bulk and in a single run, all prompts needed to cover the entire script.
+
+**Mandatory Rules:**
+1.  **Prefix:** Every single image prompt MUST begin with the exact phrase: \`cinematic World War II documentary photo of …\`
+2.  **Length:** Each prompt must be at least 400 characters long.
+3.  **Language:** All prompts MUST be written in English (U.S.).
+4.  **Thematic Focus:** Your imagery must be realistic and align with the sober, documentary tone of WWII historical records.
+5.  **Visual Style:**
+    *   **Prefer:** Period-accurate military/civilian details, specific locations, atmospheres of tension or daily life, specific character actions, historically accurate wardrobe and props.
+    *   **Avoid:** Invented facts, modern elements, gore, or sensationalism.
+    *   **Reference Image:** If a reference image is provided, you MUST analyze its visual style (color grading, lighting, composition, realism) and ALL generated prompts must strictly adhere to and replicate this visual style for consistency. This is your highest priority.
+6.  **Coverage:** Generate prompts for all major beats/scenes in the script. Do not stop until the entire script is covered. Avoid duplication and prioritize specificity.
+
+**Output Format (MANDATORY):**
+You MUST follow this exact structure for each generated item, using "---" as a separator. Do NOT include any other text, explanations, or conversational filler.
+
+---
+Prompt 1 (EN):
+"cinematic World War II documentary photo of ... [your generated prompt, ≥400 characters, following all rules]."
+
+Trích đoạn kịch bản:
+"[Copy verbatim the exact lines from the provided script that correspond to this image. Do not translate, paraphrase, or invent text. Keep the excerpt in its original language. Append timestamps/page numbers if they exist.]"
+---
+Prompt 2 (EN):
+"cinematic World War II documentary photo of ... [your next generated prompt]."
+
+Trích đoạn kịch bản:
+"[The next corresponding verbatim script excerpt.]"
+---
+...and so on for the entire script.
+
+**Alignment Rule:** All factual details (names, dates, places, units, equipment) in the prompt MUST be consistent with the quoted script excerpt below it.
+
+Now, analyze the script provided by the user and generate the complete list of prompts.
+`;
+
+
+function parseSpecialScenarioPrompts(responseText: string, partTitle: string): ScriptPartSummary[] {
     const scenes: SceneSummary[] = [];
     const blocks = responseText.split('---').filter(b => b.trim());
 
@@ -657,7 +694,7 @@ function parseFinancePrompts(responseText: string): ScriptPartSummary[] {
     });
 
     if (scenes.length === 0 && responseText.trim()) {
-        console.warn("Finance prompt parsing failed. Raw response:", responseText);
+        console.warn(`${partTitle} prompt parsing failed. Raw response:`, responseText);
         return [{
             partTitle: "Lỗi Phân Tích Phản Hồi",
             scenes: [{
@@ -670,7 +707,7 @@ function parseFinancePrompts(responseText: string): ScriptPartSummary[] {
     }
     
     return [{
-        partTitle: 'Prompts Kịch bản Finance',
+        partTitle: partTitle,
         scenes: scenes
     }];
 }
@@ -684,14 +721,21 @@ export const summarizeScriptForScenes = async (
 ): Promise<ScriptPartSummary[]> => {
     const { numberOfPrompts, includeNarration, scenarioType, referenceImage } = config;
 
-    // Handle Finance scenario with its unique prompt and parsing
-    if (scenarioType === 'finance') {
-        const fullPrompt = `${financeImagePromptSystemInstruction}\n\n**User's Script:**\n"""\n${script}\n"""`;
+    // Handle Finance and WW2 scenarios with their unique prompt and parsing
+    if (scenarioType === 'finance' || scenarioType === 'ww2') {
+        const systemInstruction = scenarioType === 'finance' 
+            ? financeImagePromptSystemInstruction 
+            : ww2ImagePromptSystemInstruction;
+        
+        const partTitle = scenarioType === 'finance'
+            ? 'Prompts Kịch bản Finance'
+            : 'Prompts Kịch bản WW2';
+
+        const fullPrompt = `${systemInstruction}\n\n**User's Script:**\n"""\n${script}\n"""`;
         try {
             const apiKey = getApiKey(provider);
             let responseText: string;
 
-            // This logic is similar to the general one, adapted for text output
             if (provider === 'gemini') {
                 const ai = new GoogleGenAI({ apiKey });
                 let modelToUse = model;
@@ -723,7 +767,7 @@ export const summarizeScriptForScenes = async (
                         ]
                     }];
                 } else {
-                     messages = [{ role: 'system', content: financeImagePromptSystemInstruction }, { role: 'user', content: script }];
+                     messages = [{ role: 'system', content: systemInstruction }, { role: 'user', content: script }];
                 }
                 const body = {
                     model: "gpt-4o", // Vision model required for image analysis
@@ -739,14 +783,14 @@ export const summarizeScriptForScenes = async (
                 if (!response.ok) throw new Error(JSON.stringify(data));
                 responseText = data.choices[0].message.content;
             }
-            return parseFinancePrompts(responseText);
+            return parseSpecialScenarioPrompts(responseText, partTitle);
         } catch (error) {
-            throw handleApiError(error, 'tạo prompt cho kịch bản Finance');
+            throw handleApiError(error, `tạo prompt cho kịch bản ${partTitle}`);
         }
     }
 
 
-    // General and WW2 scenario logic
+    // General scenario logic
     const quantityInstruction = typeof numberOfPrompts === 'number'
         ? `You MUST generate exactly ${numberOfPrompts} total scenes for the entire script.`
         : `Each scene must be designed to be approximately 8 seconds long. You decide the total number of scenes based on the script's length.`;
@@ -761,11 +805,6 @@ export const summarizeScriptForScenes = async (
     let styleInstruction = '';
     if (referenceImage) {
         styleInstruction = `**CRITICAL STYLE INSTRUCTION:** The user has provided a reference image. You MUST analyze its visual style (color palette, lighting, composition, mood, genre, era). ALL generated prompts ('imagePrompt' and 'videoPrompt') MUST strictly adhere to and replicate this visual style to ensure consistency. This is your highest priority.`;
-    } else {
-        if (scenarioType === 'ww2') {
-            styleInstruction = `**CRUCIAL STYLE INSTRUCTION:** The user selected the 'WW2' scenario. Generate all prompts with a historical, documentary, and cinematic feel. Use styles like 'black and white photography', 'archival footage', 'sepia tone', 'dramatic lighting', 'World War II era'.`;
-        }
-        // No default style for 'general'
     }
 
     const prompt = `
@@ -858,17 +897,10 @@ export const summarizeScriptForScenes = async (
             let sceneCounter = 1;
             const renumberedSummary = jsonResponse.map(part => ({
                 ...part,
-                scenes: part.scenes.map((scene: any) => {
-                    const finalScene = {
-                        ...scene,
-                        sceneNumber: sceneCounter++
-                    };
-                    // Add placeholder for WW2 video prompts
-                    if (scenarioType === 'ww2') {
-                        finalScene.videoPrompt = 'Chức năng đang phát triển';
-                    }
-                    return finalScene;
-                })
+                scenes: part.scenes.map((scene: any) => ({
+                    ...scene,
+                    sceneNumber: sceneCounter++
+                }))
             }));
             return renumberedSummary as ScriptPartSummary[];
         } else {
