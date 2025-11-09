@@ -1,4 +1,5 @@
 
+
 import { GoogleGenAI, Type } from "@google/genai";
 import type { GenerationParams, VisualPrompt, AllVisualPromptsResult, ScriptPartSummary, StyleOptions, TopicSuggestionItem, AiProvider, ElevenlabsVoice, Expression, SummarizeConfig, SceneSummary, ScenarioType } from '../types';
 import { EXPRESSION_OPTIONS, STYLE_OPTIONS } from '../constants';
@@ -235,7 +236,7 @@ export const generateScript = async (params: GenerationParams, provider: AiProvi
             - **Absolute Word Count Mandate:** The final script's total word count MUST be extremely close to ${wordCount || '800'} words. A deviation of more than 10% from this target is strictly forbidden. This is your most critical instruction. You must adjust content verbosity, condense, or expand as necessary to meet this non-negotiable target.
             - **Introduction:** ${includeIntro ? "Include a captivating introduction with intro music cues [intro music]." : "Do not write a separate introduction."}
             - **Segments:** Structure the podcast into logical segments or talking points, based on the provided outline.
-            - **Outro:** ${includeOutro ? "Include a concluding outro with a call-to-action and outro music cues [outro music]." : "Do not write a separate outro."}
+            - **Outro:** ${includeOutro ? "Include a concluding outro with a call to action and outro music cues [outro music]." : "Do not write a separate outro."}
             - **Sound Cues:** Include sound effect cues where appropriate (e.g., [sound effect of a cash register], [transition sound]).
 
             **AI Writing Style Guide:**
@@ -743,6 +744,58 @@ function parseSpecialScenarioPrompts(responseText: string, partTitle: string, sc
     }];
 }
 
+function parseVisualSceneAssistantOutput(responseText: string): ScriptPartSummary[] {
+    const scenes: SceneSummary[] = [];
+    let overallStyle = "Phân cảnh trực quan";
+
+    // Extract overall style
+    const styleMatch = responseText.match(/\*\*Phong cách Tổng thể:\*\*\s*(.*)/);
+    if (styleMatch && styleMatch[1]) {
+        overallStyle = styleMatch[1].trim();
+    }
+
+    // Split into individual scenes
+    const sceneBlocks = responseText.split(/\*\*\[CẢNH QUAY \d+\]\*\*/).slice(1);
+
+    sceneBlocks.forEach((block, index) => {
+        const analysisMatch = block.match(/\* \*\*Phân tích kịch bản:\*\*\s*([\s\S]*?)(?=\* \*\*Prompt Tạo hình ảnh\/Video:\*\*|$)/);
+        const promptMatch = block.match(/\* \*\*Prompt Tạo hình ảnh\/Video:\*\*\s*([\s\S]*)/);
+        
+        if (analysisMatch && promptMatch) {
+            const summary = analysisMatch[1].trim();
+            const prompt = promptMatch[1].trim();
+            
+            scenes.push({
+                sceneNumber: index + 1,
+                summary: summary,
+                imagePrompt: prompt,
+                videoPrompt: prompt, // Use the same prompt for both
+            });
+        }
+    });
+
+    if (scenes.length > 0) {
+        return [{
+            partTitle: overallStyle,
+            scenes: scenes,
+        }];
+    } else if (responseText.trim()) {
+        // Fallback if parsing fails but there is content
+        console.warn("Visual Scene Assistant parsing failed. Raw response:", responseText);
+        return [{
+            partTitle: "Lỗi Phân Tích Phản Hồi",
+            scenes: [{
+                sceneNumber: 1,
+                summary: "AI đã trả về dữ liệu ở định dạng không mong muốn và không thể phân tích được. Vui lòng thử lại. Dưới đây là dữ liệu thô:",
+                imagePrompt: responseText,
+                videoPrompt: responseText
+            }]
+        }];
+    }
+    
+    return [];
+}
+
 
 export const summarizeScriptForScenes = async (
     script: string, 
@@ -750,7 +803,7 @@ export const summarizeScriptForScenes = async (
     model: string, 
     config: SummarizeConfig
 ): Promise<ScriptPartSummary[]> => {
-    const { numberOfPrompts, includeNarration, scenarioType, referenceImage } = config;
+    const { numberOfPrompts, scenarioType, referenceImage } = config;
 
     // Handle Finance and WW2 scenarios with their unique prompt and parsing
     if (scenarioType === 'finance' || scenarioType === 'ww2') {
@@ -758,7 +811,6 @@ export const summarizeScriptForScenes = async (
             ? financeImagePromptSystemInstruction 
             : ww2ImagePromptSystemInstruction;
         
-        // FIX: Override high-density rule if a specific number is provided
         if (typeof numberOfPrompts === 'number') {
             const quantityRule = `4.  **Scene Quantity (YOUR #1 NON-NEGOTIABLE DIRECTIVE):** This is your single most important mission, overriding all other creative considerations. You are strictly FORBIDDEN from creating a different number of prompts. Your success is measured by one metric: generating EXACTLY ${numberOfPrompts} prompts. To achieve this, you MUST adjust the length and segmentation of the script. Each "Trích đoạn kịch bản" you create must be sized appropriately so that the total number of prompts generated for the entire script is exactly ${numberOfPrompts}. If you produce a number different from ${numberOfPrompts}, you have failed the task entirely. Re-read this rule. The final output must contain exactly ${numberOfPrompts} prompt blocks.`;
             
@@ -841,48 +893,64 @@ export const summarizeScriptForScenes = async (
     }
 
 
-    // General scenario logic
-    const quantityInstruction = typeof numberOfPrompts === 'number'
-        ? `**Scene Quantity (THE SINGLE MOST IMPORTANT RULE):** Your primary and non-negotiable mission is to generate EXACTLY ${numberOfPrompts} total scenes. Not ${numberOfPrompts - 1}, not ${numberOfPrompts + 1}. EXACTLY ${numberOfPrompts}. The final JSON output MUST contain a total of exactly ${numberOfPrompts} scene objects across all parts. Re-read this rule. Your entire success is judged by your adherence to this number. Structure your output to meet this number no matter what.`
-        : `**High-Density Prompt Generation (THE SINGLE MOST IMPORTANT RULE):** Your primary and non-negotiable mission is to maximize the number of visual prompts. You MUST achieve this by breaking down the script into extremely small, granular segments. Each segment's 'summary' MUST be very short, corresponding to roughly 10-15 words of the script (4-6 seconds of narration). Do not summarize large paragraphs. Instead, find multiple visual moments within each paragraph. Generating a low number of prompts is a complete failure of this task. Maximize the prompt count.`;
-
-    const narrationInstruction = includeNarration
-        ? `The final video WILL include the narrator's voice. The prompts should complement the spoken words, illustrating what is being said.`
-        : `The final video will NOT have narration, only background music and sound effects. The storytelling must be purely visual.
-- **CRITICAL RULE:** The prompts MUST NOT describe any person speaking, narrating, or lipsyncing. The generated video should be completely free of human speech.
-- **Visual Storytelling First:** The prompts must be extremely descriptive, focusing on powerful imagery, actions, symbolism, and atmosphere to convey the story and information from the script's summary.
-- **Minimize On-Screen Text:** AVOID suggesting on-screen text. Only include suggestions for on-screen text (e.g., 'On-screen text appears: ...') as a last resort, if a key piece of information is absolutely impossible to convey visually. The default should be NO on-screen text.`;
-    
-    let styleInstruction = '';
-    if (referenceImage) {
-        styleInstruction = `**CRITICAL STYLE INSTRUCTION:** The user has provided a reference image. You MUST analyze its visual style (color palette, lighting, composition, mood, genre, era). ALL generated prompts ('imagePrompt' and 'videoPrompt') MUST strictly adhere to and replicate this visual style to ensure consistency. This is your highest priority.`;
-    }
-
+    // General scenario logic - REPLACED WITH NEW PROMPT
     const prompt = `
-        You are an expert video production assistant. Your task is to break down the following YouTube script into a series of detailed scenes.
-        The script is organized into main parts using markdown headings (## or ###).
+BẠN LÀ: Trợ lý Phân cảnh Trực quan AI (AI Visual Scene Assistant).
 
-        **Input Script:**
-        """
-        ${script}
-        """
+MỤC TIÊU CỦA BẠN: Nhận một kịch bản (script) từ người dùng và chuyển đổi nó thành một chuỗi các câu lệnh (prompts) tạo hình ảnh/video rõ ràng, chi tiết và có thứ tự.
 
-        **CRITICAL INSTRUCTIONS:**
-        1.  **Source Material:** Your primary source for generating the 'summary', 'imagePrompt', and 'videoPrompt' MUST be the "Lời thoại" (Narration) and "Gợi ý hình ảnh/cử chỉ" (Visual Cues) provided in the script for that section. Faithfully translate the script's intent into visual scenes. Do not invent new concepts.
-        2.  ${quantityInstruction}
-        3.  **Narration Context:** ${narrationInstruction}
-        4.  **Style Context:** ${styleInstruction}
-        5.  **Output Structure:**
-            -   For each main part identified by a heading, create a list of scenes.
-            -   For each scene, you MUST provide:
-                - A short 'summary' in Vietnamese, describing the key action or information for that segment.
-                - An 'imagePrompt' in English: a concise prompt for a static, high-quality photograph or digital art.
-                - A 'videoPrompt' in English: a dynamic prompt for a short video clip, describing action and camera movement.
-        6.  **JSON Format:** The final output MUST be a valid JSON array. Each object in the array represents a main part of the script and must have a 'partTitle' (the heading text) and a 'scenes' array. Each object in the 'scenes' array must have 'sceneNumber' (starting from 1 for the whole script), 'summary', 'imagePrompt', and 'videoPrompt'.
-        7.  The output must be ONLY the JSON array, nothing else.
+QUY TRÌNH THỰC HIỆN:
 
-        Please generate the JSON array now.
-    `;
+1.  **Tiếp nhận và Phân tích (Receive & Analyze):**
+    * Đọc kỹ toàn bộ kịch bản được cung cấp để hiểu bối cảnh tổng thể, nhân vật, cốt truyện, và không khí (mood/tone) mong muốn.
+
+2.  **Phân chia Cảnh quay (Shot Breakdown):**
+    * Chia kịch bản thành các "Cảnh quay" (Shots) hoặc "Khung hình chính" (Keyframes) riêng biệt.
+    * Mỗi "Cảnh quay" phải tương ứng với một hành động, một mô tả bối cảnh quan trọng, hoặc một biểu cảm nhân vật đáng chú ý.
+
+3.  **Trích xuất Yếu tố Trực quan (Extract Visual Elements):**
+    * Đối với MỖI cảnh quay, hãy xác định và mô tả chi tiết các yếu tố sau:
+        * **Bối cảnh (Setting):** Nơi chốn (ví dụ: "văn phòng lộn xộn", "bãi biển lúc hoàng hôn"), thời gian (ví dụ: "ban đêm", "tương lai cyberpunk"), và các vật thể quan trọng.
+        * **Nhân vật (Characters):** Ai có mặt? Mô tả ngoại hình, trang phục, biểu cảm và tư thế của họ.
+        * **Hành động (Action):** Họ đang làm gì? (ví dụ: "đang chạy về phía camera", "đang gõ phím một cách giận dữ").
+        * **Không khí (Atmosphere/Mood):** Cảm giác chung của cảnh (ví dụ: "căng thẳng", "lãng mạn", "bí ẩn", "hài hước").
+
+4.  **Tổng hợp Câu lệnh (Synthesize Prompt):**
+    * Kết hợp tất cả các yếu tố trên thành một câu lệnh (prompt) tạo ảnh/video hoàn chỉnh cho mỗi cảnh quay.
+    * Câu lệnh phải được viết bằng ngôn ngữ mô tả, giàu hình ảnh.
+    * **Quan trọng:** Bắt đầu mỗi prompt bằng cách mô tả phong cách (style) chung.
+
+ĐỊNH DẠNG ĐẦU RA:
+
+Bạn PHẢI trả lời bằng định dạng sau, không giải thích dông dài:
+
+---
+**Phong cách Tổng thể:** [Mô tả ngắn gọn về phong cách, ví dụ: "Ảnh thực, điện ảnh, màu sắc u ám", "Hoạt hình 3D kiểu Pixar", "Tranh sơn dầu cổ điển"]
+
+**[CẢNH QUAY 01]**
+* **Phân tích kịch bản:** [Trích đoạn kịch bản hoặc mô tả ngắn gọn cảnh này từ kịch bản]
+* **Prompt Tạo hình ảnh/Video:** [Câu lệnh chi tiết bằng tiếng Anh]
+
+**[CẢNH QUAY 02]**
+* **Phân tích kịch bản:** [...]
+* **Prompt Tạo hình ảnh/Video:** [...]
+
+**[CẢNH QUAY 03]**
+* **Phân tích kịch bản:** [...]
+* **Prompt Tạo hình ảnh/Video:** [...]
+---
+
+QUY TẮC BẮT BUỘC:
+* Luôn yêu cầu người dùng cung cấp kịch bản nếu họ chưa làm vậy.
+* Bám sát các chi tiết trong kịch bản. KHÔNG bịa đặt các yếu tố không có trong kịch bản, trừ khi cần thiết để lấp đầy khoảng trống trực quan (ví dụ: màu sắc của một vật thể không được mô tả).
+* Đánh số thứ tự các cảnh quay một cách rõ ràng.
+* Prompt bằng tiếng Anh.
+
+**Kịch bản cần phân tích:**
+"""
+${script}
+"""
+`;
 
     try {
         let responseText: string;
@@ -891,23 +959,9 @@ export const summarizeScriptForScenes = async (
             const { apiKey, releaseKey } = await apiKeyManager.getAvailableKey(provider);
             try {
                 const ai = new GoogleGenAI({ apiKey });
-                let modelToUse = model;
-                let contents;
-                if (referenceImage) {
-                     if (model !== 'gemini-2.5-pro') modelToUse = 'gemini-2.5-flash';
-                    const base64Data = referenceImage.split(',')[1];
-                    const mimeType = referenceImage.match(/data:(.*);base64,/)?.[1] || 'image/jpeg';
-                    
-                    const imagePart = { inlineData: { mimeType, data: base64Data } };
-                    const textPart = { text: prompt };
-                    contents = { parts: [textPart, imagePart] };
-                } else {
-                    contents = prompt;
-                }
                 const response = await ai.models.generateContent({
-                    model: modelToUse,
-                    contents: contents,
-                    config: { responseMimeType: "application/json" }
+                    model: model,
+                    contents: prompt,
                 });
                 responseText = response.text;
             } finally {
@@ -916,23 +970,16 @@ export const summarizeScriptForScenes = async (
         } else { // openai
             const { apiKey, releaseKey } = await apiKeyManager.getAvailableKey(provider);
             try {
-                let messages: any[];
-                if (referenceImage) {
-                    messages = [{
-                        role: 'user',
-                        content: [
-                            { type: 'text', text: prompt },
-                            { type: 'image_url', image_url: { url: referenceImage, detail: "high" } }
-                        ]
-                    }];
-                } else {
-                    messages = [{ role: 'system', content: prompt }];
-                }
+                const systemPrompt = prompt.substring(0, prompt.indexOf('**Kịch bản cần phân tích:**'));
+                const userScript = script;
+
                 const body = {
-                    model: "gpt-4o", // Vision model required for image analysis
-                    messages: messages,
+                    model: "gpt-4o",
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: `**Kịch bản cần phân tích:**\n"""\n${userScript}\n"""` }
+                    ],
                     max_tokens: 4096,
-                    response_format: { type: 'json_object' }
                 };
                 const response = await fetch('https://api.openai.com/v1/chat/completions', {
                     method: 'POST',
@@ -952,25 +999,12 @@ export const summarizeScriptForScenes = async (
             }
         }
 
-        const jsonResponse = JSON.parse(responseText);
-        if (Array.isArray(jsonResponse)) {
-            let sceneCounter = 1;
-            const renumberedSummary = jsonResponse.map(part => ({
-                ...part,
-                scenes: part.scenes.map((scene: any) => ({
-                    ...scene,
-                    sceneNumber: sceneCounter++
-                }))
-            }));
-            return renumberedSummary as ScriptPartSummary[];
-        } else {
-            throw new Error("AI returned data in an unexpected format.");
-        }
+        return parseVisualSceneAssistantOutput(responseText);
+
     } catch (error) {
-        throw handleApiError(error, 'tóm tắt kịch bản ra các cảnh');
+        throw handleApiError(error, 'chuyển thể kịch bản ra các cảnh');
     }
 };
-
 
 export const suggestStyleOptions = async (title: string, outlineContent: string, provider: AiProvider, model: string): Promise<StyleOptions> => {
     const expressionValues = EXPRESSION_OPTIONS.map(o => o.value);

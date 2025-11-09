@@ -116,7 +116,7 @@ export const TtsModal: React.FC<TtsModalProps> = ({ isOpen, onClose, dialogue, v
                 [partTitle]: { isLoading: false, audioUrl, error: null }
             }));
         } catch (caughtError) {
-            // FIX: The 'caughtError' variable is of type 'unknown'. A type guard is used to safely access the `message` property.
+            // Fix: Type guard added to safely access the 'message' property from the 'caughtError' variable, which is of type 'unknown'.
             setGenerationState(prev => ({
                 ...prev,
                 [partTitle]: { isLoading: false, audioUrl: null, error: caughtError instanceof Error ? caughtError.message : 'Lỗi không xác định' }
