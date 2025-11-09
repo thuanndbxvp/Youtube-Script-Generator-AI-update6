@@ -2,6 +2,7 @@
 
 
 
+
 import React, { useState, useEffect } from 'react';
 import { ClipboardIcon } from './icons/ClipboardIcon';
 import { DownloadIcon } from './icons/DownloadIcon';
@@ -73,7 +74,7 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
     const [promptCountInput, setPromptCountInput] = useState('10');
     const [includeNarration, setIncludeNarration] = useState(false);
     const [scenarioType, setScenarioType] = useState<ScenarioType>('general');
-    const [referenceImage, setReferenceImage] = useState<string | null>(null);
+    const [referenceImages, setReferenceImages] = useState<string[]>([]);
     const [activeTab, setActiveTab] = useState<'image' | 'video'>('image');
     const [generatingVideoPromptKey, setGeneratingVideoPromptKey] = useState<string | null>(null);
     const [isBulkGenerating, setIsBulkGenerating] = useState(false);
@@ -85,7 +86,7 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
             setPromptCountInput('10');
             setIncludeNarration(false);
             setScenarioType('general');
-            setReferenceImage(null);
+            setReferenceImages([]);
             setIsBulkGenerating(false);
         }
     }, [isOpen, summary, isLoading, error]);
@@ -98,7 +99,7 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
             numberOfPrompts: isAutoPrompts ? 'auto' : parseInt(promptCountInput, 10),
             includeNarration,
             scenarioType,
-            referenceImage,
+            referenceImages,
         };
         onGenerate(config);
     };
@@ -110,7 +111,7 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
             numberOfPrompts: isAutoPrompts ? 'auto' : parseInt(promptCountInput, 10),
             includeNarration,
             scenarioType,
-            referenceImage,
+            referenceImages,
         };
         await onGenerateVideoPrompt(scene, partIndex, config);
         setGeneratingVideoPromptKey(null);
@@ -125,7 +126,7 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
             numberOfPrompts: isAutoPrompts ? 'auto' : parseInt(promptCountInput, 10),
             includeNarration,
             scenarioType,
-            referenceImage,
+            referenceImages,
         };
 
         const scenesToGenerate: { scene: SceneSummary, partIndex: number }[] = [];
@@ -162,7 +163,7 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
             numberOfPrompts: isAutoPrompts ? 'auto' : parseInt(promptCountInput, 10),
             includeNarration,
             scenarioType,
-            referenceImage,
+            referenceImages,
         };
 
         const scenesToRetry: { scene: SceneSummary, partIndex: number }[] = [];
@@ -252,13 +253,12 @@ export const SummarizeModal: React.FC<SummarizeModalProps> = ({ isOpen, onClose,
                         </select>
                     </div>
 
-                    {(scenarioType === 'ww2' || scenarioType === 'finance') && (
-                        <ImageUploader
-                            onImageSelect={setReferenceImage}
-                            onImageRemove={() => setReferenceImage(null)}
-                            imagePreviewUrl={referenceImage}
-                        />
-                    )}
+                    
+                    <ImageUploader 
+                        onImagesChange={setReferenceImages}
+                        imagePreviewUrls={referenceImages}
+                    />
+                    
 
                     <div>
                         <label className="block text-sm font-semibold text-text-primary mb-2">Số lượng prompt</label>

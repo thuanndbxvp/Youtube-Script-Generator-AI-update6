@@ -1,5 +1,4 @@
 
-
 import { GoogleGenAI, Type } from "@google/genai";
 import type { GenerationParams, VisualPrompt, AllVisualPromptsResult, ScriptPartSummary, StyleOptions, TopicSuggestionItem, AiProvider, ElevenlabsVoice, Expression, SummarizeConfig, SceneSummary, ScenarioType } from '../types';
 import { EXPRESSION_OPTIONS, STYLE_OPTIONS } from '../constants';
@@ -617,7 +616,7 @@ export const generateAllVisualPrompts = async (script: string, provider: AiProvi
     }
 };
 
-const financeImagePromptSystemInstruction = `You are an expert cinematic image prompt generator for a financial history documentary. You will be given a script and optionally a reference image. Your task is to analyze the materials and generate, in bulk and in a single run, all image prompts needed to cover the entire script.
+const financeImagePromptSystemInstruction = `You are an expert cinematic image prompt generator for a financial history documentary. You will be given a script and optionally one or more reference images. Your task is to analyze the materials and generate, in bulk and in a single run, all image prompts needed to cover the entire script.
 
 **Mandatory Rules:**
 1.  **Prefix:** Every single image prompt MUST begin with the exact phrase: \`cinematic financial history documentary photo of …\`
@@ -628,24 +627,22 @@ const financeImagePromptSystemInstruction = `You are an expert cinematic image p
 6.  **Visual Style:**
     *   **Prefer:** Stock exchanges, trading floors, ticker boards, central banks, long bank queues, vintage newspapers with crisis headlines, charts, moody city skylines, stressed small businesses, thoughtful faces lit by monitors.
     *   **Avoid:** Gore, explicit violence, riots, modern brand logos, partisan propaganda. Keep institutions generic.
-    *   **Reference Image:** If a reference image is provided, you MUST analyze its visual style (color palette, lighting, composition, mood, realism) and ALL generated prompts must strictly adhere to and replicate this visual style for consistency. This is your highest priority.
+    *   **Reference Images:** If reference images are provided, you MUST analyze their combined visual style (color palette, lighting, composition, mood, realism) and ALL generated prompts must strictly adhere to and replicate this unified visual style for consistency. This is your highest priority.
 7.  **Coverage:** Based on the high-density rule, generate prompts for the entire script. Avoid duplication and prioritize specificity.
 
 **Output Format (MANDATORY):**
-You MUST follow this exact structure for each generated item, using "---" as a separator. Do NOT include any other text, explanations, or conversational filler.
+You MUST answer using the following format, with no conversational filler:
 
 ---
-Prompt 1 (EN):
-"cinematic financial history documentary photo of ... [your generated prompt, ≥400 characters, following all rules]."
+**Phong cách Tổng thể:** [Describe the overall visual style, e.g., "Cinematic, realistic documentary photography with a moody, high-contrast aesthetic, connecting historical finance to modern anxieties."]
 
-Trích đoạn kịch bản:
-"[Copy verbatim the exact lines from the provided script that correspond to this image. The excerpt should be short, about 10-15 words. Do not translate, paraphrase, or invent text. Keep the excerpt in its original language.]"
----
-Prompt 2 (EN):
-"cinematic financial history documentary photo of ... [your next generated prompt]."
+**[CẢNH QUAY 01]**
+* **Phân tích kịch bản:** [The corresponding verbatim script excerpt, about 10-15 words long. Do not translate or paraphrase.]
+* **Prompt Tạo hình ảnh/Video:** [The detailed English prompt, starting with the mandatory prefix "cinematic financial history documentary photo of ...", and meeting all other rules.]
 
-Trích đoạn kịch bản:
-"[The next corresponding verbatim script excerpt, about 10-15 words long.]"
+**[CẢNH QUAY 02]**
+* **Phân tích kịch bản:** [...]
+* **Prompt Tạo hình ảnh/Video:** [...]
 ---
 ...and so on for the entire script.
 
@@ -654,7 +651,7 @@ Trích đoạn kịch bản:
 Now, analyze the script provided by the user and generate the complete list of prompts.
 `;
 
-const ww2ImagePromptSystemInstruction = `You are an expert cinematic image prompt generator for a World War II documentary. You will be given a script and optionally a reference image. Your task is to analyze the materials and generate, in bulk and in a single run, all prompts needed to cover the entire script.
+const ww2ImagePromptSystemInstruction = `You are an expert cinematic image prompt generator for a World War II documentary. You will be given a script and optionally one or more reference images. Your task is to analyze the materials and generate, in bulk and in a single run, all prompts needed to cover the entire script.
 
 **Mandatory Rules:**
 1.  **Prefix:** Every single image prompt MUST begin with the exact phrase: \`cinematic World War II documentary photo of …\`
@@ -665,24 +662,22 @@ const ww2ImagePromptSystemInstruction = `You are an expert cinematic image promp
 6.  **Visual Style:**
     *   **Prefer:** Period-accurate military/civilian details, specific locations, atmospheres of tension or daily life, specific character actions, historically accurate wardrobe and props.
     *   **Avoid:** Invented facts, modern elements, gore, or sensationalism.
-    *   **Reference Image:** If a reference image is provided, you MUST analyze its visual style (color grading, lighting, composition, realism) and ALL generated prompts must strictly adhere to and replicate this visual style for consistency. This is your highest priority.
+    *   **Reference Images:** If reference images are provided, you MUST analyze their combined visual style (color grading, lighting, composition, realism) and ALL generated prompts must strictly adhere to and replicate this unified visual style for consistency. This is your highest priority.
 7.  **Coverage:** Based on the high-density rule, generate prompts for the entire script. Avoid duplication and prioritize specificity.
 
 **Output Format (MANDATORY):**
-You MUST follow this exact structure for each generated item, using "---" as a separator. Do NOT include any other text, explanations, or conversational filler.
+You MUST answer using the following format, with no conversational filler:
 
 ---
-Prompt 1 (EN):
-"cinematic World War II documentary photo of ... [your generated prompt, ≥400 characters, following all rules]."
+**Phong cách Tổng thể:** [Describe the overall visual style for the entire documentary, e.g., "Cinematic, realistic, archival-style photography with a desaturated, gritty color palette."]
 
-Trích đoạn kịch bản:
-"[Copy verbatim the exact lines from the provided script that correspond to this image. The excerpt should be short, about 10-15 words. Do not translate, paraphrase, or invent text. Keep the excerpt in its original language. Append timestamps/page numbers if they exist.]"
----
-Prompt 2 (EN):
-"cinematic World War II documentary photo of ... [your next generated prompt]."
+**[CẢNH QUAY 01]**
+* **Phân tích kịch bản:** [The corresponding verbatim script excerpt, about 10-15 words long. Do not translate or paraphrase.]
+* **Prompt Tạo hình ảnh/Video:** [The detailed English prompt, starting with the mandatory prefix "cinematic World War II documentary photo of ...", and meeting all other rules.]
 
-Trích đoạn kịch bản:
-"[The next corresponding verbatim script excerpt, about 10-15 words long.]"
+**[CẢNH QUAY 02]**
+* **Phân tích kịch bản:** [...]
+* **Prompt Tạo hình ảnh/Video:** [...]
 ---
 ...and so on for the entire script.
 
@@ -690,59 +685,6 @@ Trích đoạn kịch bản:
 
 Now, analyze the script provided by the user and generate the complete list of prompts.
 `;
-
-
-function parseSpecialScenarioPrompts(responseText: string, partTitle: string, scenarioType: ScenarioType): ScriptPartSummary[] {
-    const scenes: SceneSummary[] = [];
-    // Split by '---' which separates each scene block
-    const blocks = responseText.split('---').filter(b => b.trim());
-
-    blocks.forEach((block, index) => {
-        const excerptMatch = block.match(/Trích đoạn kịch bản:\s*([\s\S]*)/);
-        
-        // If there's no script excerpt, we can't process the block.
-        if (!excerptMatch) return;
-
-        const summary = excerptMatch[1].trim();
-
-        // Try to find an image prompt. It can be labeled "Image Prompt" or just "Prompt".
-        let imageMatch = block.match(/Image\s+Prompt\s*\d*\s*\(EN\):\s*([\s\S]*?)(?=Video\s+Prompt|Trích đoạn kịch bản:|$)/);
-        if (!imageMatch) {
-            // Fallback for formats like WW2's "Prompt 1 (EN):"
-            imageMatch = block.match(/Prompt\s*\d*\s*\(EN\):\s*([\s\S]*?)(?=Trích đoạn kịch bản:|$)/);
-        }
-        
-        const imagePrompt = imageMatch ? imageMatch[1].trim().replace(/^"|"$/g, '') : 'Lỗi phân tích prompt ảnh.';
-        const videoPrompt = (scenarioType === 'ww2' || scenarioType === 'finance') 
-            ? 'Prompt chưa được tạo.' 
-            : 'Chức năng đang phát triển';
-
-        scenes.push({
-            sceneNumber: index + 1,
-            summary: summary,
-            imagePrompt: imagePrompt,
-            videoPrompt: videoPrompt,
-        });
-    });
-
-    if (scenes.length === 0 && responseText.trim()) {
-        console.warn(`${partTitle} prompt parsing failed. Raw response:`, responseText);
-        return [{
-            partTitle: "Lỗi Phân Tích Phản Hồi",
-            scenes: [{
-                sceneNumber: 1,
-                summary: "AI đã trả về dữ liệu ở định dạng không mong muốn và không thể phân tích được. Vui lòng thử lại. Dưới đây là dữ liệu thô:",
-                imagePrompt: responseText,
-                videoPrompt: ''
-            }]
-        }];
-    }
-    
-    return [{
-        partTitle: partTitle,
-        scenes: scenes
-    }];
-}
 
 function parseVisualSceneAssistantOutput(responseText: string): ScriptPartSummary[] {
     const scenes: SceneSummary[] = [];
@@ -803,7 +745,7 @@ export const summarizeScriptForScenes = async (
     model: string, 
     config: SummarizeConfig
 ): Promise<ScriptPartSummary[]> => {
-    const { numberOfPrompts, scenarioType, referenceImage } = config;
+    const { numberOfPrompts, scenarioType, referenceImages } = config;
 
     // Handle Finance and WW2 scenarios with their unique prompt and parsing
     if (scenarioType === 'finance' || scenarioType === 'ww2') {
@@ -835,14 +777,16 @@ export const summarizeScriptForScenes = async (
                     const ai = new GoogleGenAI({ apiKey });
                     let modelToUse = model;
                     let contents;
-                    if (referenceImage) {
+                    if (referenceImages && referenceImages.length > 0) {
                         if (model !== 'gemini-2.5-pro') modelToUse = 'gemini-2.5-flash';
-                        const base64Data = referenceImage.split(',')[1];
-                        const mimeType = referenceImage.match(/data:(.*);base64,/)?.[1] || 'image/jpeg';
                         
-                        const imagePart = { inlineData: { mimeType, data: base64Data } };
                         const textPart = { text: fullPrompt };
-                        contents = { parts: [textPart, imagePart] };
+                        const imageParts = referenceImages.map(img => {
+                            const base64Data = img.split(',')[1];
+                            const mimeType = img.match(/data:(.*);base64,/)?.[1] || 'image/jpeg';
+                            return { inlineData: { mimeType, data: base64Data } };
+                        });
+                        contents = { parts: [textPart, ...imageParts] };
                     } else {
                         contents = fullPrompt;
                     }
@@ -858,12 +802,16 @@ export const summarizeScriptForScenes = async (
                 const { apiKey, releaseKey } = await apiKeyManager.getAvailableKey(provider);
                 try {
                     let messages: any[];
-                    if (referenceImage) {
+                    if (referenceImages && referenceImages.length > 0) {
+                        const imageContent = referenceImages.map(img => ({
+                            type: 'image_url',
+                            image_url: { url: img, detail: "high" }
+                        }));
                         messages = [{
                             role: 'user',
                             content: [
                                 { type: 'text', text: fullPrompt },
-                                { type: 'image_url', image_url: { url: referenceImage, detail: "high" } }
+                                ...imageContent
                             ]
                         }];
                     } else {
@@ -886,18 +834,22 @@ export const summarizeScriptForScenes = async (
                     releaseKey();
                 }
             }
-            return parseSpecialScenarioPrompts(responseText, partTitle, scenarioType);
+            return parseVisualSceneAssistantOutput(responseText);
         } catch (error) {
             throw handleApiError(error, `tạo prompt cho kịch bản ${partTitle}`);
         }
     }
 
 
-    // General scenario logic - REPLACED WITH NEW PROMPT
+    // General scenario logic
+    const imageInstruction = (referenceImages && referenceImages.length > 0)
+        ? `\n**QUY TẮC VỀ ẢNH THAM CHIẾU (RẤT QUAN TRỌNG):**\nBạn PHẢI phân tích tất cả các ảnh tham chiếu được cung cấp để xác định một phong cách hình ảnh chung (về màu sắc, ánh sáng, bố cục, không khí). Sau đó, bạn PHẢI đảm bảo TẤT CẢ các prompt được tạo ra đều tuân thủ nghiêm ngặt phong cách chung này để đảm bảo tính nhất quán cho toàn bộ video.\n`
+        : '';
+        
     const prompt = `
 BẠN LÀ: Trợ lý Phân cảnh Trực quan AI (AI Visual Scene Assistant).
 
-MỤC TIÊU CỦA BẠN: Nhận một kịch bản (script) từ người dùng và chuyển đổi nó thành một chuỗi các câu lệnh (prompts) tạo hình ảnh/video rõ ràng, chi tiết và có thứ tự.
+MỤC TIÊU CỦA BẠN: Nhận một kịch bản (script) và (tùy chọn) các ảnh tham chiếu từ người dùng và chuyển đổi nó thành một chuỗi các câu lệnh (prompts) tạo hình ảnh/video rõ ràng, chi tiết và có thứ tự.
 
 QUY TRÌNH THỰC HIỆN:
 
@@ -945,7 +897,7 @@ QUY TẮC BẮT BUỘC:
 * Bám sát các chi tiết trong kịch bản. KHÔNG bịa đặt các yếu tố không có trong kịch bản, trừ khi cần thiết để lấp đầy khoảng trống trực quan (ví dụ: màu sắc của một vật thể không được mô tả).
 * Đánh số thứ tự các cảnh quay một cách rõ ràng.
 * Prompt bằng tiếng Anh.
-
+${imageInstruction}
 **Kịch bản cần phân tích:**
 """
 ${script}
@@ -959,9 +911,24 @@ ${script}
             const { apiKey, releaseKey } = await apiKeyManager.getAvailableKey(provider);
             try {
                 const ai = new GoogleGenAI({ apiKey });
+                let modelToUse = model;
+                let contents: any;
+                if (referenceImages && referenceImages.length > 0) {
+                    if (model !== 'gemini-2.5-pro') modelToUse = 'gemini-2.5-flash';
+                    
+                    const textPart = { text: prompt };
+                    const imageParts = referenceImages.map(img => {
+                        const base64Data = img.split(',')[1];
+                        const mimeType = img.match(/data:(.*);base64,/)?.[1] || 'image/jpeg';
+                        return { inlineData: { mimeType, data: base64Data } };
+                    });
+                    contents = { parts: [textPart, ...imageParts] };
+                } else {
+                    contents = prompt;
+                }
                 const response = await ai.models.generateContent({
-                    model: model,
-                    contents: prompt,
+                    model: modelToUse,
+                    contents: contents,
                 });
                 responseText = response.text;
             } finally {
@@ -972,13 +939,30 @@ ${script}
             try {
                 const systemPrompt = prompt.substring(0, prompt.indexOf('**Kịch bản cần phân tích:**'));
                 const userScript = script;
+                let messages: any[];
+
+                if (referenceImages && referenceImages.length > 0) {
+                    const imageContent = referenceImages.map(img => ({
+                        type: 'image_url',
+                        image_url: { url: img, detail: "high" }
+                    }));
+                    messages = [{
+                        role: 'user',
+                        content: [
+                            { type: 'text', text: `${systemPrompt}\n**Kịch bản cần phân tích:**\n"""\n${userScript}\n"""` },
+                            ...imageContent
+                        ]
+                    }];
+                } else {
+                     messages = [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: `**Kịch bản cần phân tích:**\n"""\n${userScript}\n"""` }
+                    ];
+                }
 
                 const body = {
                     model: "gpt-4o",
-                    messages: [
-                        { role: 'system', content: systemPrompt },
-                        { role: 'user', content: `**Kịch bản cần phân tích:**\n"""\n${userScript}\n"""` }
-                    ],
+                    messages: messages,
                     max_tokens: 4096,
                 };
                 const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -1170,7 +1154,7 @@ export const generateElevenlabsTts = async (text: string, voiceId: string): Prom
     }
 }
 
-const financeVideoPromptSystemInstruction = `You are an expert cinematic video prompt generator for a financial history documentary. You will be given a script excerpt and optionally a reference image. Your task is to generate ONE detailed video prompt.
+const financeVideoPromptSystemInstruction = `You are an expert cinematic video prompt generator for a financial history documentary. You will be given a script excerpt and optionally one or more reference images. Your task is to generate ONE detailed video prompt.
 
 **Mandatory Rules:**
 1.  **Prefix:** The video prompt MUST begin with the exact phrase: \`cinematic financial history documentary video shot of …\`
@@ -1182,7 +1166,7 @@ const financeVideoPromptSystemInstruction = `You are an expert cinematic video p
     *   **Camera:** Describe a single, slow, fluid camera move: slow pan (L/R), gentle push-in or pull-out, subtle orbit.
     *   **Technical Specs:** You MUST explicitly state the following in the prompt: \`duration 5–10s, 16:9 aspect ratio, 1080p\`.
     *   **Style Notes:** You MUST explicitly state the following: \`preserve original grade, subtle grain/archival texture, no logos, no gore, no partisan symbols\`.
-5.  **Reference Image:** If a reference image is provided, you MUST analyze its visual style (color, lighting, mood) and the generated prompt must strictly adhere to this style.
+5.  **Reference Images:** If reference images are provided, you MUST analyze their combined visual style (color, lighting, mood) and the generated prompt must strictly adhere to this unified style.
 6.  **Alignment:** All factual details MUST be consistent with the provided script excerpt.
 7.  **Output Format:** Output ONLY the single, complete video prompt string. No JSON, no extra text.
 
@@ -1192,7 +1176,7 @@ const financeVideoPromptSystemInstruction = `You are an expert cinematic video p
 """
 `;
 
-const ww2VideoPromptSystemInstruction = `You are an expert cinematic video prompt generator for a World War II documentary. You will be given a script excerpt and optionally a reference image. Your task is to generate ONE detailed video prompt.
+const ww2VideoPromptSystemInstruction = `You are an expert cinematic video prompt generator for a World War II documentary. You will be given a script excerpt and optionally one or more reference images. Your task is to generate ONE detailed video prompt.
 
 **Mandatory Rules:**
 1.  **Prefix:** The video prompt MUST begin with the exact phrase: \`cinematic World War II documentary video shot of …\`
@@ -1204,7 +1188,7 @@ const ww2VideoPromptSystemInstruction = `You are an expert cinematic video promp
     *   **Camera:** Describe a single, slow, documentary-style camera move: slow track, gentle push-in on a subject, or a pan across a landscape.
     *   **Technical Specs:** You MUST explicitly state the following in the prompt: \`duration 5–10s, 16:9 aspect ratio, 1080p\`.
     *   **Style Notes:** You MUST explicitly state the following: \`historically accurate, photorealistic, archival footage feel, subtle grain, no logos, no gore\`.
-5.  **Reference Image:** If a reference image is provided, you MUST analyze its visual style (color, lighting, mood) and the generated prompt must strictly adhere to this style.
+5.  **Reference Images:** If reference images are provided, you MUST analyze their combined visual style (color, lighting, mood) and the generated prompt must strictly adhere to this unified style.
 6.  **Alignment:** All factual details (units, equipment, locations, dates) MUST be consistent with the provided script excerpt.
 7.  **Output Format:** Output ONLY the single, complete video prompt string. No JSON, no extra text.
 
@@ -1219,7 +1203,7 @@ export const generateSingleVideoPrompt = async (
     scenarioType: ScenarioType,
     provider: AiProvider, 
     model: string,
-    referenceImage?: string | null
+    referenceImages?: string[]
 ): Promise<string> => {
     if (scenarioType !== 'finance' && scenarioType !== 'ww2') {
         return 'Chức năng này chỉ dành cho kịch bản WW2 và Finance.';
@@ -1239,14 +1223,15 @@ export const generateSingleVideoPrompt = async (
                 const ai = new GoogleGenAI({ apiKey });
                 let modelToUse = model;
                 let contents;
-                if (referenceImage) {
+                if (referenceImages && referenceImages.length > 0) {
                     if (model !== 'gemini-2.5-pro') modelToUse = 'gemini-2.5-flash';
-                    const base64Data = referenceImage.split(',')[1];
-                    const mimeType = referenceImage.match(/data:(.*);base64,/)?.[1] || 'image/jpeg';
-                    
-                    const imagePart = { inlineData: { mimeType, data: base64Data } };
                     const textPart = { text: fullPrompt };
-                    contents = { parts: [textPart, imagePart] };
+                    const imageParts = referenceImages.map(img => {
+                        const base64Data = img.split(',')[1];
+                        const mimeType = img.match(/data:(.*);base64,/)?.[1] || 'image/jpeg';
+                        return { inlineData: { mimeType, data: base64Data } };
+                    });
+                    contents = { parts: [textPart, ...imageParts] };
                 } else {
                     contents = fullPrompt;
                 }
@@ -1259,12 +1244,16 @@ export const generateSingleVideoPrompt = async (
             const { apiKey, releaseKey } = await apiKeyManager.getAvailableKey(provider);
             try {
                 let messages: any[];
-                if (referenceImage) {
+                if (referenceImages && referenceImages.length > 0) {
+                    const imageContent = referenceImages.map(img => ({
+                        type: 'image_url',
+                        image_url: { url: img, detail: "high" }
+                    }));
                     messages = [{
                         role: 'user',
                         content: [
                             { type: 'text', text: fullPrompt },
-                            { type: 'image_url', image_url: { url: referenceImage, detail: "high" } }
+                            ...imageContent
                         ]
                     }];
                 } else {

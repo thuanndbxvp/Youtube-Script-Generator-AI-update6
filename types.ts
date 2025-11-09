@@ -112,5 +112,5 @@ export interface SummarizeConfig {
   numberOfPrompts: 'auto' | number;
   includeNarration: boolean;
   scenarioType: ScenarioType;
-  referenceImage?: string | null;
+  referenceImages?: string[];
 }

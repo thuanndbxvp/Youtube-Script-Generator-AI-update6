@@ -1,4 +1,5 @@
 
+
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { ControlPanel } from './components/ControlPanel';
 import { OutputDisplay } from './components/OutputDisplay';
@@ -850,7 +851,7 @@ const App: React.FC = () => {
             config.scenarioType,
             aiProvider,
             selectedModel,
-            config.referenceImage
+            config.referenceImages
         );
         
         const updateCacheAndState = (prevData: ScriptPartSummary[] | null): ScriptPartSummary[] | null => {
