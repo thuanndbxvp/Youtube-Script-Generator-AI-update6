@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import type { ElevenlabsVoice } from '../types';
 import { DownloadIcon } from './icons/DownloadIcon';
@@ -116,7 +117,7 @@ export const TtsModal: React.FC<TtsModalProps> = ({ isOpen, onClose, dialogue, v
                 [partTitle]: { isLoading: false, audioUrl, error: null }
             }));
         } catch (caughtError) {
-            // The 'caughtError' variable is of type 'unknown'. Set isLoading to false as the loading process has ended, and safely access the error message.
+            // FIX: The 'caughtError' variable is of type 'unknown'. Safely access the error message by checking if it's an instance of Error.
             setGenerationState(prev => ({
                 ...prev,
                 [partTitle]: { isLoading: false, audioUrl: null, error: caughtError instanceof Error ? caughtError.message : 'Lỗi không xác định' }

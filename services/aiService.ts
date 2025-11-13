@@ -690,28 +690,36 @@ function parseVisualSceneAssistantOutput(responseText: string): ScriptPartSummar
     const scenes: SceneSummary[] = [];
     let overallStyle = "Phân cảnh trực quan";
 
-    // Extract overall style
-    const styleMatch = responseText.match(/\*\*Phong cách Tổng thể:\*\*\s*(.*)/);
+    // Extract overall style (more flexible)
+    const styleMatch = responseText.match(/\*\*(?:Phong cách Tổng thể|Overall Style):\*\*\s*(.*)/i);
     if (styleMatch && styleMatch[1]) {
         overallStyle = styleMatch[1].trim();
     }
 
-    // Split into individual scenes
-    const sceneBlocks = responseText.split(/\*\*\[CẢNH QUAY \d+\]\*\*/).slice(1);
+    // Split the response by scene markers, using a lookahead to keep the delimiters
+    const sceneBlocks = responseText.split(/(?=\*\*\[?(?:CẢNH QUAY|SCENE)\s*\d+\]?\*\*)/i);
 
-    sceneBlocks.forEach((block, index) => {
-        const analysisMatch = block.match(/\* \*\*Phân tích kịch bản:\*\*\s*([\s\S]*?)(?=\* \*\*Prompt Tạo hình ảnh\/Video:\*\*|$)/);
-        const promptMatch = block.match(/\* \*\*Prompt Tạo hình ảnh\/Video:\*\*\s*([\s\S]*)/);
+    // Filter out any initial text block (like 'Overall Style') that doesn't contain a scene marker itself
+    const actualSceneBlocks = sceneBlocks.filter(block => /\*\*\[?(?:CẢNH QUAY|SCENE)\s*\d+\]?\*\*/i.test(block));
+
+    actualSceneBlocks.forEach((block) => {
+        // Extract scene number from the header
+        const sceneNumberMatch = block.match(/\*\*\[?(?:CẢNH QUAY|SCENE)\s*(\d+)\]?\*\*/i);
+        const sceneNumber = sceneNumberMatch ? parseInt(sceneNumberMatch[1], 10) : scenes.length + 1;
+
+        // More flexible regex for extracting content
+        const analysisMatch = block.match(/\* \*\*(?:Phân tích kịch bản|Analysis|Script Analysis):\*\*\s*([\s\S]*?)(?=\* \*\*|$)/i);
+        const promptMatch = block.match(/\* \*\*(?:Prompt Tạo hình ảnh\/Video|Prompt|Image\/Video Prompt):\*\*\s*([\s\S]*)/i);
         
         if (analysisMatch && promptMatch) {
             const summary = analysisMatch[1].trim();
             const prompt = promptMatch[1].trim();
             
             scenes.push({
-                sceneNumber: index + 1,
+                sceneNumber: sceneNumber,
                 summary: summary,
                 imagePrompt: prompt,
-                videoPrompt: prompt, // Use the same prompt for both
+                videoPrompt: prompt,
             });
         }
     });
