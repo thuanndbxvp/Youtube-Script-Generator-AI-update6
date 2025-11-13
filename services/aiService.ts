@@ -697,23 +697,25 @@ function parseVisualSceneAssistantOutput(responseText: string): ScriptPartSummar
     }
 
     // Split the response by scene markers, using a lookahead to keep the delimiters
-    const sceneBlocks = responseText.split(/(?=\*\*\[?(?:CẢNH QUAY|SCENE)\s*\d+\]?\*\*)/i);
+    // More flexible: allows "CẢNH" in addition to "CẢNH QUAY" and "SCENE"
+    const sceneBlocks = responseText.split(/(?=\*\*\[?(?:CẢNH QUAY|CẢNH|SCENE)\s*\d+\]?\*\*)/i);
 
     // Filter out any initial text block (like 'Overall Style') that doesn't contain a scene marker itself
-    const actualSceneBlocks = sceneBlocks.filter(block => /\*\*\[?(?:CẢNH QUAY|SCENE)\s*\d+\]?\*\*/i.test(block));
+    const actualSceneBlocks = sceneBlocks.filter(block => /\*\*\[?(?:CẢNH QUAY|CẢNH|SCENE)\s*\d+\]?\*\*/i.test(block));
 
     actualSceneBlocks.forEach((block) => {
         // Extract scene number from the header
-        const sceneNumberMatch = block.match(/\*\*\[?(?:CẢNH QUAY|SCENE)\s*(\d+)\]?\*\*/i);
+        const sceneNumberMatch = block.match(/\*\*\[?(?:CẢNH QUAY|CẢNH|SCENE)\s*(\d+)\]?\*\*/i);
         const sceneNumber = sceneNumberMatch ? parseInt(sceneNumberMatch[1], 10) : scenes.length + 1;
 
-        // More flexible regex for extracting content
-        const analysisMatch = block.match(/\* \*\*(?:Phân tích kịch bản|Analysis|Script Analysis):\*\*\s*([\s\S]*?)(?=\* \*\*|$)/i);
-        const promptMatch = block.match(/\* \*\*(?:Prompt Tạo hình ảnh\/Video|Prompt|Image\/Video Prompt):\*\*\s*([\s\S]*)/i);
+        // More robust combined regex to capture both summary and prompt
+        // Allows for optional '*' at the start of lines and various labels
+        const contentRegex = /(?:\* *)?\*\*(?:Phân tích kịch bản|Analysis|Script Analysis):\*\*\s*([\s\S]*?)\s*(?:\* *)?\*\*(?:Prompt Tạo hình ảnh\/Video|Prompt|Image\/Video Prompt):\*\*\s*([\s\S]*)/i;
+        const contentMatch = block.match(contentRegex);
         
-        if (analysisMatch && promptMatch) {
-            const summary = analysisMatch[1].trim();
-            const prompt = promptMatch[1].trim();
+        if (contentMatch) {
+            const summary = contentMatch[1].trim();
+            const prompt = contentMatch[2].trim();
             
             scenes.push({
                 sceneNumber: sceneNumber,

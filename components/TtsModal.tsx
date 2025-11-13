@@ -1,6 +1,4 @@
 
-
-
 import React, { useState, useEffect, useRef } from 'react';
 import type { ElevenlabsVoice } from '../types';
 import { DownloadIcon } from './icons/DownloadIcon';
@@ -117,7 +115,8 @@ export const TtsModal: React.FC<TtsModalProps> = ({ isOpen, onClose, dialogue, v
                 [partTitle]: { isLoading: false, audioUrl, error: null }
             }));
         } catch (caughtError) {
-            // FIX: The 'caughtError' variable is of type 'unknown'. Safely access the error message by checking if it's an instance of Error.
+            // FIX: The caught error object is of type 'unknown'. We must check if it's an
+            // instance of Error before accessing properties like 'message' to avoid a runtime crash.
             setGenerationState(prev => ({
                 ...prev,
                 [partTitle]: { isLoading: false, audioUrl: null, error: caughtError instanceof Error ? caughtError.message : 'Lỗi không xác định' }
